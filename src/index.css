@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #000000;
+  /* corn-base */
+  color: #f8fafc;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  /* Prevent scroll for full-screen map */
+}
+
+/* Custom scrollbar for drawers */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #120202;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #450a0a;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7f1d1d;
+}
+
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.8);
+  }
+
+  70% {
+    box-shadow: 0 0 0 30px rgba(34, 197, 94, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 2s infinite;
+}
