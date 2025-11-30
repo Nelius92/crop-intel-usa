@@ -36,6 +36,20 @@ export interface Buyer extends Coordinates {
     fullAddress?: string;
     netPrice?: number;
     freightCost?: number;
+    futuresPrice?: number;
+    contractMonth?: string; // e.g. "Dec 2025"
+    benchmarkDiff?: number; // Difference from Hankinson Renewable Energy
+    verified?: boolean; // True if data passed the AI Auditor check
+    isManual?: boolean; // True if manually entered by user
+    lastUpdated?: string; // ISO timestamp
+}
+
+export interface MarketOracle {
+    futuresPrice: number;
+    contractMonth: string;
+    hankinsonBasis: number;
+    centralRegionBasis: number;
+    lastUpdated: string;
 }
 
 export interface RailNode {

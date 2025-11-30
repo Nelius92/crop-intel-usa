@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BuyerChart } from '../components/BuyerChart';
+import { LiveQuoteBoard } from '../components/LiveQuoteBoard';
 import { BuyerTable } from '../components/BuyerTable';
-import { MarketIntelPanel } from '../components/MarketIntelPanel';
 import { OpportunityDrawer } from '../components/OpportunityDrawer';
 import { enrichBuyerWithGoogleData, fetchRealBuyersFromGoogle } from '../services/buyersService';
 import { geminiService } from '../services/gemini';
@@ -15,11 +14,17 @@ export const BuyersPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
 
+    const [oracle, setOracle] = useState<any>(null);
+
     const fetchBuyers = async () => {
         setLoading(true);
         setError(null);
         try {
-            // 1. Use Google Places API to get real buyers (The Body)
+            // 1. Get the Market Oracle Truths FIRST
+            const oracleData = await geminiService.getMarketOracle();
+            setOracle(oracleData);
+
+            // 2. Use Google Places API to get real buyers (The Body)
             const googleData = await fetchRealBuyersFromGoogle();
 
             if (googleData.length === 0) {
@@ -31,27 +36,25 @@ export const BuyersPage: React.FC = () => {
             // Show Google data immediately (with placeholder prices)
             setBuyers(googleData);
 
-            // 2. Use Gemini API to enrich with market data (The Brain)
-            // We do this without blocking the UI, but we show a loading state if we want, 
-            // or just let the prices "pop" in. Let's keep loading true for a moment or use a separate state.
-            // For "Hand-in-Hand" feel, let's wait for the brain to finish so the user sees the complete picture.
-
+            // 3. Use Gemini API to enrich with market data (The Brain)
             try {
-                const enrichedData = await geminiService.enrichBuyersWithMarketData(googleData);
+                // Pass the Oracle Truths to the enrichment engine
+                const enrichedData = await geminiService.enrichBuyersWithMarketData(googleData, oracleData);
 
-                // 3. Calculate Freight & Net Price for each buyer
+                // 4. Calculate Freight, Net Price & Benchmark Diff for each buyer
                 const buyersWithFreight = await Promise.all(enrichedData.map(async (buyer) => {
                     const freight = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.name);
                     const netPrice = (buyer.cashPrice || 0) - freight.ratePerBushel;
                     return {
                         ...buyer,
                         freightCost: freight.ratePerBushel,
-                        netPrice: parseFloat(netPrice.toFixed(2))
+                        netPrice: parseFloat(netPrice.toFixed(2)),
+                        // benchmarkDiff is already calculated by the service using Oracle data
                     };
                 }));
 
-                // Sort by Net Price descending (Best Deal for Seller)
-                const sortedData = buyersWithFreight.sort((a, b) => (b.netPrice || 0) - (a.netPrice || 0));
+                // Sort by Basis descending (Highest Bids First)
+                const sortedData = buyersWithFreight.sort((a, b) => b.basis - a.basis);
                 setBuyers(sortedData);
             } catch (aiError) {
                 console.error("AI Enrichment failed, using raw Google data", aiError);
@@ -69,6 +72,14 @@ export const BuyersPage: React.FC = () => {
 
     useEffect(() => {
         fetchBuyers();
+
+        // Auto-refresh every 30 minutes (1800000 ms)
+        const intervalId = setInterval(() => {
+            console.log("Auto-refreshing market data...");
+            fetchBuyers();
+        }, 1800000);
+
+        return () => clearInterval(intervalId);
     }, []);
 
     const handleSelectBuyer = async (buyer: Buyer) => {
@@ -98,12 +109,22 @@ export const BuyersPage: React.FC = () => {
     };
 
     return (
-        <div className="w-full min-h-screen flex flex-col bg-black relative pt-48 px-4 pb-24 gap-6 overflow-y-auto overflow-x-hidden">
+        <div className="w-full h-full flex flex-col bg-black relative pt-48 px-4 pb-24 gap-6 overflow-y-auto overflow-x-hidden">
             {/* Header - Floating Dark Glass Bar */}
             <div className="absolute top-20 left-4 right-4 z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-xl">
                 <div>
                     <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Buyer <span className="text-orange-500">Intelligence</span></h2>
-                    <p className="text-zinc-400 text-sm">Real-time bids and logistics analysis</p>
+                    <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                        <span>Real-time bids</span>
+                        {oracle && (
+                            <>
+                                <span className="text-zinc-600">•</span>
+                                <span className="text-corn-accent font-mono">
+                                    Market: {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
+                                </span>
+                            </>
+                        )}
+                    </div>
                 </div>
                 <button
                     onClick={fetchBuyers}
@@ -123,28 +144,20 @@ export const BuyersPage: React.FC = () => {
             )}
 
             {/* Main Content Grid */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Charts and Table (2/3) */}
-                <div className="lg:col-span-2 flex flex-col gap-6 h-full min-h-[600px]">
-                    <div className="h-[200px] flex-shrink-0">
-                        {loading && buyers.length === 0 ? (
-                            <div className="w-full h-full bg-corn-card/50 rounded-xl animate-pulse" />
-                        ) : buyers.length > 0 ? (
-                            <BuyerChart buyers={buyers} onSelect={handleSelectBuyer} />
-                        ) : (
-                            <div className="w-full h-full bg-corn-card/50 rounded-xl flex items-center justify-center text-slate-500">
-                                No buyer data available.
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex-1 min-h-[400px]">
-                        <BuyerTable buyers={buyers} onSelect={handleSelectBuyer} />
-                    </div>
+            <div className="flex-1 flex flex-col gap-6">
+                <div className="h-[240px] flex-shrink-0">
+                    {loading && buyers.length === 0 ? (
+                        <div className="w-full h-full bg-corn-card/50 rounded-xl animate-pulse" />
+                    ) : buyers.length > 0 ? (
+                        <LiveQuoteBoard buyers={buyers} onSelect={handleSelectBuyer} />
+                    ) : (
+                        <div className="w-full h-full bg-corn-card/50 rounded-xl flex items-center justify-center text-slate-500">
+                            No buyer data available.
+                        </div>
+                    )}
                 </div>
-
-                {/* Right Column: Market Intel (1/3) */}
-                <div className="lg:col-span-1 h-[300px] lg:h-auto">
-                    <MarketIntelPanel buyers={buyers} />
+                <div>
+                    <BuyerTable buyers={buyers} onSelect={handleSelectBuyer} />
                 </div>
             </div>
 

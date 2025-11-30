@@ -9,9 +9,38 @@ interface OpportunityDrawerProps {
 }
 
 export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onClose }) => {
+    const isBuyer = (item: any): item is Buyer => 'type' in item;
+
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [editValues, setEditValues] = React.useState({ cashPrice: 0, basis: 0 });
+
+    React.useEffect(() => {
+        if (item && isBuyer(item)) {
+            setEditValues({ cashPrice: item.cashPrice, basis: item.basis });
+        }
+    }, [item]);
+
     if (!item) return null;
 
-    const isBuyer = (item: any): item is Buyer => 'type' in item;
+    const handleSaveBid = () => {
+        if (!item || !isBuyer(item)) return;
+
+        // Update local storage or state management here
+        // For this demo, we'll emit a custom event that the parent or service can listen to,
+        // or directly modify the object if it's shared reference (risky but quick for demo).
+        // Better: Save to a "manualBids" map in localStorage.
+
+        const manualBids = JSON.parse(localStorage.getItem('manualBids') || '{}');
+        manualBids[item.id] = {
+            cashPrice: parseFloat(editValues.cashPrice.toString()),
+            basis: parseFloat(editValues.basis.toString()),
+            timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('manualBids', JSON.stringify(manualBids));
+
+        // Force reload to reflect changes (simple approach)
+        window.location.reload();
+    };
 
     return (
         <AnimatePresence>
@@ -76,19 +105,6 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                     onClick={() => window.location.href = `tel:${item.contactPhone}`}
                                     disabled={!item.contactPhone}
                                 />
-                                {item.contactEmail && (
-                                    <ActionButton
-                                        icon={<Mail size={20} />}
-                                        label="Email"
-                                        onClick={() => window.location.href = `mailto:${item.contactEmail}`}
-                                    />
-                                )}
-                                <ActionButton
-                                    icon={<Globe size={20} />}
-                                    label="Website"
-                                    onClick={() => item.website && window.open(item.website, '_blank')}
-                                    disabled={!item.website}
-                                />
                                 <ActionButton
                                     icon={<Share2 size={20} />}
                                     label="Share"
@@ -104,12 +120,57 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                                 console.log('Error sharing:', err);
                                             }
                                         } else {
-                                            // Fallback: Copy to clipboard
                                             navigator.clipboard.writeText(`${item.name}: $${item.cashPrice.toFixed(2)} Cash`);
                                             alert('Bid info copied to clipboard!');
                                         }
                                     }}
                                 />
+                                <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className={`flex flex-col items-center gap-1 min-w-[60px] group`}
+                                >
+                                    <div className={`p-3 rounded-full transition-all duration-300 ${isEditing ? 'bg-yellow-500 text-black' : 'bg-zinc-800 text-zinc-400 group-hover:bg-zinc-700 group-hover:text-white'}`}>
+                                        <User size={20} />
+                                    </div>
+                                    <span className={`text-[10px] font-medium tracking-wide ${isEditing ? 'text-yellow-400' : 'text-zinc-500'}`}>
+                                        Edit Bid
+                                    </span>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Edit Mode UI */}
+                        {isEditing && isBuyer(item) && (
+                            <div className="px-6 py-4 bg-yellow-500/10 border-b border-yellow-500/20">
+                                <h3 className="text-yellow-400 text-sm font-bold uppercase mb-3">Manual Bid Override</h3>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="text-zinc-400 text-xs uppercase block mb-1">Cash Price</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editValues.cashPrice}
+                                            onChange={(e) => setEditValues({ ...editValues, cashPrice: parseFloat(e.target.value) })}
+                                            className="w-full bg-black/40 border border-zinc-700 rounded p-2 text-white font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-zinc-400 text-xs uppercase block mb-1">Basis</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editValues.basis}
+                                            onChange={(e) => setEditValues({ ...editValues, basis: parseFloat(e.target.value) })}
+                                            className="w-full bg-black/40 border border-zinc-700 rounded p-2 text-white font-mono"
+                                        />
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleSaveBid}
+                                    className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-2 rounded transition-colors"
+                                >
+                                    Save Manual Bid
+                                </button>
                             </div>
                         )}
 
@@ -184,6 +245,35 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                             </div>
                                         </div>
                                     </div>
+
+                                    <div className="h-px bg-zinc-700/50 my-2" />
+
+                                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                                        <div className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Futures ({item.contractMonth || 'Spot'})</div>
+                                        <div className="text-2xl font-mono text-white font-bold">
+                                            {item.futuresPrice ? `$${item.futuresPrice.toFixed(2)}` : '-'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                                        <div className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Basis</div>
+                                        <div className={`text-2xl font-mono font-bold ${item.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {item.basis > 0 ? '+' : ''}{item.basis.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800">
+                                        <div className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Cash Price</div>
+                                        <div className="text-2xl font-mono text-white font-bold">
+                                            ${item.cashPrice.toFixed(2)}
+                                        </div>
+                                    </div>
+                                    {item.benchmarkDiff !== undefined && (
+                                        <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-800 col-span-2 sm:col-span-3 flex justify-between items-center">
+                                            <span className="text-zinc-400 text-sm">vs Hankinson Renewable Energy</span>
+                                            <span className={`text-lg font-mono font-bold ${item.benchmarkDiff > 0 ? 'text-green-400' : item.benchmarkDiff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                                {item.benchmarkDiff > 0 ? '+' : ''}{item.benchmarkDiff.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

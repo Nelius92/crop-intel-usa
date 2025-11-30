@@ -3,6 +3,7 @@ import { HeatMapPage } from './pages/HeatMapPage';
 import { BuyersPage } from './pages/BuyersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { BottomNav } from './components/BottomNav';
+import { CloudHealthCheck } from './components/CloudHealthCheck';
 import { Sprout } from 'lucide-react';
 
 function App() {
@@ -31,6 +32,9 @@ function App() {
 
             {/* Bottom Navigation */}
             <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+            {/* Cloud Integrations Health Check */}
+            <CloudHealthCheck />
         </div>
     );
 }

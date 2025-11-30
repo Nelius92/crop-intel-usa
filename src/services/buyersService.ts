@@ -6,16 +6,35 @@ import { googleMapsService } from './googleMapsService';
 
 // Key Corn Belt Hubs to search around
 const SEARCH_HUBS = [
-    { city: "Des Moines", state: "IA" },
+    // Key Corn Belt & High-Demand Hubs (Ethanol, Feedlots, Export)
+    { city: "Des Moines", state: "IA" }, // Ethanol
+    { city: "Cedar Rapids", state: "IA" }, // Processing
+    { city: "Fort Dodge", state: "IA" }, // Ethanol
+    { city: "Sioux City", state: "IA" }, // Processing
+    { city: "Blair", state: "NE" }, // Processing
     { city: "Omaha", state: "NE" },
-    { city: "Decatur", state: "IL" },
+    { city: "Columbus", state: "NE" }, // Ethanol
+    { city: "Grand Island", state: "NE" }, // Processing
+    { city: "Decatur", state: "IL" }, // Processing
+    { city: "Peoria", state: "IL" }, // River
+    { city: "Champaign", state: "IL" },
     { city: "Mankato", state: "MN" },
+    { city: "Marshall", state: "MN" },
     { city: "Sioux Falls", state: "SD" },
+    { city: "Aberdeen", state: "SD" },
     { city: "Kansas City", state: "MO" },
+    { city: "St. Joseph", state: "MO" },
     { city: "Amarillo", state: "TX" }, // Feedlot Alley
     { city: "Hereford", state: "TX" }, // Feedlot Alley
-    { city: "Oklahoma City", state: "OK" },
-    { city: "Grand Island", state: "NE" }
+    { city: "Lubbock", state: "TX" }, // South Plains
+    { city: "Corpus Christi", state: "TX" }, // Export
+    { city: "Dalhart", state: "TX" },
+    { city: "Garden City", state: "KS" }, // Feedlots
+    { city: "Dodge City", state: "KS" }, // Feedlots
+    { city: "Guymon", state: "OK" }, // Feedlots
+    { city: "Memphis", state: "TN" }, // River
+    { city: "St. Louis", state: "MO" }, // River
+    { city: "Cairo", state: "IL" } // River Confluence
 ];
 
 export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {

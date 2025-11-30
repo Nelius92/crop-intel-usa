@@ -1,29 +1,58 @@
 import React, { useEffect, useState } from 'react';
 import { CornMap } from '../components/CornMap';
-import { TopPricesCard } from '../components/TopPricesCard';
+import { MarketIntelPanel } from '../components/MarketIntelPanel';
 import { geminiService } from '../services/gemini';
-import { HeatmapPoint } from '../types';
+import { fetchRealBuyersFromGoogle } from '../services/buyersService';
+import { calculateFreight } from '../services/railService';
+import { HeatmapPoint, Buyer } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export const HeatMapPage: React.FC = () => {
     const [heatmapData, setHeatmapData] = useState<HeatmapPoint[]>([]);
+    const [buyers, setBuyers] = useState<Buyer[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await geminiService.getLiveHeatmapData();
-            if (data.length === 0) {
-                setError("Unable to fetch market data.");
-            } else {
-                setHeatmapData(data);
-                setLastUpdated(new Date());
+            // 1. Fetch Heatmap Data (for the map)
+            const heatData = await geminiService.getLiveHeatmapData();
+            setHeatmapData(heatData);
+
+            // 2. Fetch Buyers (for the Top 3 Widget)
+            // Get Oracle Truths first
+            const oracleData = await geminiService.getMarketOracle();
+
+            // Get Google Buyers
+            const googleData = await fetchRealBuyersFromGoogle();
+
+            if (googleData.length > 0) {
+                // Enrich with Oracle Data
+                const enrichedData = await geminiService.enrichBuyersWithMarketData(googleData, oracleData);
+
+                // Calculate Freight & Net Price
+                const buyersWithFreight = await Promise.all(enrichedData.map(async (buyer) => {
+                    const freight = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.name);
+                    const netPrice = (buyer.cashPrice || 0) - freight.ratePerBushel;
+                    return {
+                        ...buyer,
+                        freightCost: freight.ratePerBushel,
+                        netPrice: parseFloat(netPrice.toFixed(2)),
+                    };
+                }));
+
+                // Sort by Basis descending
+                const sortedBuyers = buyersWithFreight.sort((a, b) => b.basis - a.basis);
+                setBuyers(sortedBuyers);
             }
+
+            setLastUpdated(new Date());
+
         } catch (err) {
+            console.error(err);
             setError("Connection failed.");
         } finally {
             setLoading(false);
@@ -32,8 +61,8 @@ export const HeatMapPage: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-        // Refresh every 5 minutes
-        const interval = setInterval(fetchData, 5 * 60 * 1000);
+        // Refresh every 30 minutes (1800000 ms)
+        const interval = setInterval(fetchData, 1800000);
         return () => clearInterval(interval);
     }, []);
 
@@ -46,7 +75,7 @@ export const HeatMapPage: React.FC = () => {
                 view="usa"
                 theme="green-glow"
                 heatmapData={heatmapData}
-                hoveredRegionId={hoveredRegionId}
+                hoveredRegionId={null}
             />
 
             {/* Overlay Elements */}
@@ -82,12 +111,8 @@ export const HeatMapPage: React.FC = () => {
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
             </button>
 
-            <div className="absolute bottom-24 sm:top-20 right-4 sm:right-6 pointer-events-auto z-10">
-                <TopPricesCard
-                    data={heatmapData}
-                    loading={loading && heatmapData.length === 0}
-                    onHoverRegion={setHoveredRegionId}
-                />
+            <div className="absolute bottom-24 sm:top-20 right-4 sm:right-6 pointer-events-auto z-10 w-80 h-[300px]">
+                <MarketIntelPanel buyers={buyers} />
             </div>
         </div>
     );
