@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MapPin, Train, Phone, Mail, User, Navigation, Globe, Clock, Star, Share2 } from 'lucide-react';
+import { X, Phone, Navigation, MapPin, Star, Share2, User, Train, Clock } from 'lucide-react';
 import { HeatmapPoint, Buyer } from '../types';
 
 interface OpportunityDrawerProps {

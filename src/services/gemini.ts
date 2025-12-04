@@ -14,6 +14,7 @@ export class GeminiService {
     // Use gemini-2.0-flash-exp for latest features and speed
     private model = genAI.getGenerativeModel({
         model: 'gemini-2.0-flash-exp',
+        // @ts-ignore - googleSearch is valid for gemini-2.0-flash-exp but missing in current SDK types
         tools: [{ googleSearch: {} }]
     });
 
