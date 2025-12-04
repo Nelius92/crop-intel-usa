@@ -109,49 +109,53 @@ export const BuyersPage: React.FC = () => {
     };
 
     return (
-        <div className="w-full h-full flex flex-col bg-black relative pt-48 px-4 pb-24 gap-6 overflow-y-auto overflow-x-hidden">
-            {/* Header - Floating Dark Glass Bar */}
-            <div className="absolute top-20 left-4 right-4 z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-xl">
-                <div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Buyer <span className="text-orange-500">Intelligence</span></h2>
-                    <div className="flex items-center gap-2 text-zinc-400 text-sm">
-                        <span>Real-time bids</span>
-                        {oracle && (
-                            <>
-                                <span className="text-zinc-600">•</span>
-                                <span className="text-corn-accent font-mono">
-                                    Market: {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
-                                </span>
-                            </>
-                        )}
+        <div className="w-full h-full flex flex-col bg-black relative overflow-hidden">
+            {/* Header - Static Sticky Bar */}
+            <div className="flex-shrink-0 pt-20 px-4 pb-4 bg-black/80 backdrop-blur-sm z-20 border-b border-white/5">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-xl">
+                    <div>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Buyer <span className="text-orange-500">Intelligence</span></h2>
+                        <div className="flex items-center gap-2 text-zinc-400 text-sm">
+                            <span>Real-time bids</span>
+                            {oracle && (
+                                <>
+                                    <span className="text-zinc-600">•</span>
+                                    <span className="text-corn-accent font-mono">
+                                        Market: {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
+                                    </span>
+                                </>
+                            )}
+                        </div>
                     </div>
+                    <button
+                        onClick={fetchBuyers}
+                        disabled={loading}
+                        className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50 self-end sm:self-auto"
+                    >
+                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+                    </button>
                 </div>
-                <button
-                    onClick={fetchBuyers}
-                    disabled={loading}
-                    className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50 self-end sm:self-auto"
-                >
-                    <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-                </button>
             </div>
 
             {/* Error Banner */}
             {error && (
-                <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
-                    <AlertTriangle size={16} />
-                    <span>{error} Showing last known data.</span>
+                <div className="px-4 py-2">
+                    <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+                        <AlertTriangle size={16} />
+                        <span>{error} Showing last known data.</span>
+                    </div>
                 </div>
             )}
 
-            {/* Main Content Grid */}
-            <div className="flex-1 flex flex-col gap-6">
-                <div className="h-[240px] flex-shrink-0">
+            {/* Main Content Grid - Scrollable Area */}
+            <div className="flex-1 overflow-y-auto px-4 pb-24 flex flex-col gap-6 custom-scrollbar">
+                <div className="flex-shrink-0">
                     {loading && buyers.length === 0 ? (
-                        <div className="w-full h-full bg-corn-card/50 rounded-xl animate-pulse" />
+                        <div className="w-full h-[240px] bg-corn-card/50 rounded-xl animate-pulse" />
                     ) : buyers.length > 0 ? (
                         <LiveQuoteBoard buyers={buyers} onSelect={handleSelectBuyer} />
                     ) : (
-                        <div className="w-full h-full bg-corn-card/50 rounded-xl flex items-center justify-center text-slate-500">
+                        <div className="w-full h-[240px] bg-corn-card/50 rounded-xl flex items-center justify-center text-slate-500">
                             No buyer data available.
                         </div>
                     )}

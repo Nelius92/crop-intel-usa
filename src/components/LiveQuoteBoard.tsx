@@ -8,25 +8,35 @@ interface LiveQuoteBoardProps {
 }
 
 export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect }) => {
+    const [isMinimized, setIsMinimized] = React.useState(false);
+
     // Get top 3 buyers by basis
     const topBuyers = [...buyers]
         .sort((a, b) => b.basis - a.basis)
         .slice(0, 3);
 
     return (
-        <div className="w-full h-full bg-black/40 backdrop-blur-md rounded-xl border border-white/10 p-4 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between mb-4">
+        <div className={`w-full bg-black/40 backdrop-blur-md rounded-xl border border-white/10 p-4 flex flex-col overflow-hidden transition-all duration-300 ${isMinimized ? 'h-[60px]' : 'h-full'}`}>
+            <div className="flex items-center justify-between mb-4 shrink-0">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                     <Activity size={16} className="text-corn-accent" />
                     Live Market Quotes
                 </h3>
-                <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span className="text-[10px] font-mono text-green-500">MARKET OPEN</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <span className="text-[10px] font-mono text-green-500">MARKET OPEN</span>
+                    </div>
+                    <button
+                        onClick={() => setIsMinimized(!isMinimized)}
+                        className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+                    >
+                        <ArrowUpRight size={16} className={`transform transition-transform duration-300 ${isMinimized ? 'rotate-180' : 'rotate-0'}`} />
+                    </button>
                 </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
+            <div className={`flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0 transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 {topBuyers.map((buyer, index) => (
                     <div
                         key={buyer.id}
