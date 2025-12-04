@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Phone, Navigation, MapPin, Star, Share2, User, Train, Clock } from 'lucide-react';
+import { X, Phone, Navigation, MapPin, Star, Share2, User, Train, Clock, Globe } from 'lucide-react';
 import { HeatmapPoint, Buyer } from '../types';
 
 interface OpportunityDrawerProps {
@@ -104,6 +104,12 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                     label="Call"
                                     onClick={() => window.location.href = `tel:${item.contactPhone}`}
                                     disabled={!item.contactPhone}
+                                />
+                                <ActionButton
+                                    icon={<Globe size={20} />}
+                                    label="Website"
+                                    onClick={() => window.open(item.website, '_blank')}
+                                    disabled={!item.website}
                                 />
                                 <ActionButton
                                     icon={<Share2 size={20} />}

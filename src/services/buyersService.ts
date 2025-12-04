@@ -34,7 +34,30 @@ const SEARCH_HUBS = [
     { city: "Guymon", state: "OK" }, // Feedlots
     { city: "Memphis", state: "TN" }, // River
     { city: "St. Louis", state: "MO" }, // River
-    { city: "Cairo", state: "IL" } // River Confluence
+    { city: "Cairo", state: "IL" }, // River Confluence
+
+    // West Coast (Rail Destination Markets)
+    { city: "Modesto", state: "CA" }, // Dairy/Poultry
+    { city: "Fresno", state: "CA" }, // Dairy
+    { city: "Tulare", state: "CA" }, // Dairy Capital
+    { city: "Pasco", state: "WA" }, // PNW Export/Feed
+    { city: "Yakima", state: "WA" }, // Dairy
+    { city: "Jerome", state: "ID" }, // Dairy
+    { city: "Casa Grande", state: "AZ" }, // Dairy
+
+    // East Coast & Southeast (Poultry/Hog Markets)
+    { city: "Gainesville", state: "GA" }, // Poultry Capital
+    { city: "Dalton", state: "GA" },
+    { city: "Clinton", state: "NC" }, // Hogs/Poultry
+    { city: "Fayetteville", state: "NC" },
+    { city: "Harrisonburg", state: "VA" }, // Poultry
+    { city: "Millsboro", state: "DE" }, // Poultry
+    { city: "Albany", state: "NY" }, // Ethanol/Feed
+
+    // Southern Plains & Delta
+    { city: "Little Rock", state: "AR" }, // Poultry
+    { city: "Springdale", state: "AR" }, // Poultry HQ
+    { city: "Guntersville", state: "AL" } // Poultry/River
 ];
 
 export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {

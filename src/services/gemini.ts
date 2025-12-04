@@ -334,12 +334,14 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             Generate realistic basis bids for the provided buyers relative to these truths.
             
             CRITICAL - SCOUT FOR BEST BIDS (MUST BEAT HANKINSON):
-            1. **Texas/Kansas Feedlots** (Amarillo, Hereford, Garden City): MUST be PREMIUM (e.g., +0.50 to +0.90). These should be the HIGHEST bids.
-            2. **Processing/Ethanol** (Cedar Rapids, Decatur, Blair): Strong basis (e.g., -0.10 to +0.20).
-            3. **River Terminals** (St. Louis, Memphis): Competitive (e.g., -0.20 to +0.10).
-            4. **Remote/Country Elevators**: Weaker basis (e.g., -0.70 to -0.40).
+            1. **West Coast Rail Markets** (CA, WA, AZ, ID): HIGHEST PREMIUMS due to freight (e.g., +1.00 to +1.40).
+            2. **East Coast/Southeast** (GA, NC, DE): Strong premiums for poultry/hogs (e.g., +0.50 to +0.90).
+            3. **Texas/Kansas Feedlots** (Amarillo, Hereford, Garden City): Strong Premium (e.g., +0.50 to +0.90).
+            4. **Processing/Ethanol** (Cedar Rapids, Decatur, Blair): Strong basis (e.g., -0.10 to +0.20).
+            5. **River Terminals** (St. Louis, Memphis): Competitive (e.g., -0.20 to +0.10).
+            6. **Remote/Country Elevators**: Weaker basis (e.g., -0.70 to -0.40).
             
-            Ensure that the top feedlots have a basis HIGHER than Hankinson (${oracle.hankinsonBasis}).
+            Ensure that the top rail destination markets (CA, WA, GA, TX) have the HIGHEST basis.
             
             Buyers:
             ${JSON.stringify(buyerList)}
@@ -393,8 +395,14 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
                 const isTexas = buyer.state === 'TX';
                 const isKansas = buyer.state === 'KS';
                 const isNebraska = buyer.state === 'NE';
+                const isWestCoast = ['CA', 'WA', 'OR', 'ID', 'AZ'].includes(buyer.state);
+                const isSoutheast = ['GA', 'NC', 'SC', 'AL', 'AR', 'VA', 'DE'].includes(buyer.state);
 
-                if (isTexas || isKansas) {
+                if (isWestCoast) {
+                    fallbackBasis = 1.25; // High rail freight premium
+                } else if (isSoutheast) {
+                    fallbackBasis = 0.75; // Poultry market premium
+                } else if (isTexas || isKansas) {
                     fallbackBasis = 0.60; // Premium for feedlots
                 } else if (isNebraska) {
                     fallbackBasis = -0.10; // Stronger corn belt basis
