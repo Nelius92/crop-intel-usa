@@ -111,17 +111,17 @@ export const BuyersPage: React.FC = () => {
     return (
         <div className="w-full h-full flex flex-col bg-black relative overflow-hidden">
             {/* Header - Static Sticky Bar */}
-            <div className="flex-shrink-0 pt-20 px-4 pb-4 bg-black/80 backdrop-blur-sm z-20 border-b border-white/5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-xl">
+            <div className="flex-shrink-0 pt-20 px-4 pb-2 sm:pb-4 bg-black/80 backdrop-blur-sm z-20 border-b border-white/5">
+                <div className="flex flex-row justify-between items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-white/10 shadow-xl">
                     <div>
-                        <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Buyer <span className="text-orange-500">Intelligence</span></h2>
-                        <div className="flex items-center gap-2 text-zinc-400 text-sm">
-                            <span>Real-time bids</span>
+                        <h2 className="text-xl sm:text-3xl font-bold text-white tracking-tight">Buyer <span className="text-orange-500">Intel</span></h2>
+                        <div className="flex items-center gap-2 text-zinc-400 text-xs sm:text-sm">
+                            <span className="hidden sm:inline">Real-time bids</span>
                             {oracle && (
                                 <>
-                                    <span className="text-zinc-600">•</span>
+                                    <span className="hidden sm:inline text-zinc-600">•</span>
                                     <span className="text-corn-accent font-mono">
-                                        Market: {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
+                                        {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
                                     </span>
                                 </>
                             )}
@@ -130,9 +130,9 @@ export const BuyersPage: React.FC = () => {
                     <button
                         onClick={fetchBuyers}
                         disabled={loading}
-                        className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50 self-end sm:self-auto"
+                        className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50"
                     >
-                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+                        <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
                     </button>
                 </div>
             </div>
