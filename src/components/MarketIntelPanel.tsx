@@ -9,31 +9,35 @@ interface MarketIntelPanelProps {
 
 export const MarketIntelPanel: React.FC<MarketIntelPanelProps> = ({ buyers }) => {
     const [activeTab, setActiveTab] = useState<'top3' | 'freight'>('top3');
+    const [isMinimized, setIsMinimized] = useState(false);
 
     // Get top 3 buyers (assumes buyers are already sorted by basis)
     const topBuyers = buyers.slice(0, 3);
 
     return (
-        <div className="w-full h-full bg-zinc-900/90 backdrop-blur-md rounded-xl border border-white/10 p-6 flex flex-col relative overflow-hidden group shadow-2xl">
+        <div className={`w-full bg-zinc-900/90 backdrop-blur-md rounded-xl border border-white/10 flex flex-col relative overflow-hidden group shadow-2xl transition-all duration-300 ${isMinimized ? 'h-[60px]' : 'h-full'}`}>
             {/* Background Gradient Effect */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-emerald-500/20 transition-all duration-700"></div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-emerald-500/20 transition-all duration-700 pointer-events-none"></div>
 
-            <div className="flex items-center justify-between mb-6 relative z-10">
+            <div
+                className="flex items-center justify-between p-4 relative z-10 cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={() => setIsMinimized(!isMinimized)}
+            >
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg shadow-lg shadow-emerald-500/20">
                         <TrendingUp className="text-white" size={20} />
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-white tracking-tight">Top Opportunities</h3>
-                        <div className="flex gap-2 text-xs mt-1">
+                        <div className={`flex gap-2 text-xs mt-1 transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                             <button
-                                onClick={() => setActiveTab('top3')}
+                                onClick={(e) => { e.stopPropagation(); setActiveTab('top3'); }}
                                 className={`px-2 py-0.5 rounded transition-colors ${activeTab === 'top3' ? 'bg-white/20 text-white font-medium' : 'text-zinc-400 hover:text-zinc-200'}`}
                             >
                                 Top 3 Buyers
                             </button>
                             <button
-                                onClick={() => setActiveTab('freight')}
+                                onClick={(e) => { e.stopPropagation(); setActiveTab('freight'); }}
                                 className={`px-2 py-0.5 rounded transition-colors ${activeTab === 'freight' ? 'bg-cyan-500/20 text-cyan-300 font-medium' : 'text-zinc-400 hover:text-zinc-200'}`}
                             >
                                 Freight Calc
@@ -41,9 +45,26 @@ export const MarketIntelPanel: React.FC<MarketIntelPanelProps> = ({ buyers }) =>
                         </div>
                     </div>
                 </div>
+                <div className="p-1 rounded text-slate-400 transition-colors">
+                    {/* Chevron icon could be added here if imported, using rotation for now or just relying on height change */}
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`transform transition-transform duration-300 ${isMinimized ? 'rotate-180' : 'rotate-0'}`}
+                    >
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 relative z-10 custom-scrollbar">
+            <div className={`flex-1 overflow-y-auto px-6 pb-6 pr-2 relative z-10 custom-scrollbar transition-opacity duration-300 ${isMinimized ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 {activeTab === 'top3' ? (
                     <div className="flex flex-col gap-3">
                         {topBuyers.length > 0 ? (

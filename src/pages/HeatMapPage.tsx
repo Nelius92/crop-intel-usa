@@ -111,7 +111,7 @@ export const HeatMapPage: React.FC = () => {
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
             </button>
 
-            <div className="absolute bottom-24 sm:top-20 right-4 sm:right-6 pointer-events-auto z-10 w-80 h-[300px]">
+            <div className="absolute bottom-24 sm:top-20 right-4 sm:right-6 pointer-events-auto z-10 w-80">
                 <MarketIntelPanel buyers={buyers} />
             </div>
         </div>
