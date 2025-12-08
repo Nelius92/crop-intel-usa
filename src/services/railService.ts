@@ -1,23 +1,130 @@
 import { RailNetwork, RailNode, Buyer } from '../types';
+import { bnsfService } from './bnsfService';
 
-// Simple mock rail lines
+// Comprehensive BNSF & Major Rail Network Simulation
 export const RAIL_LINES: RailNetwork[] = [
+    // --- BNSF Northern Transcon (Chicago -> Seattle/PNW) ---
     {
-        id: 'ns-corridor', // North-South through Midwest (approx I-35 corridor)
+        id: 'bnsf-north-transcon',
         path: [
-            { lat: 45.0, lng: -93.5 }, // Minneapolis
-            { lat: 41.6, lng: -93.6 }, // Des Moines
-            { lat: 39.1, lng: -94.6 }, // Kansas City
+            { lat: 41.8781, lng: -87.6298 }, // Chicago
+            { lat: 43.8013, lng: -91.2396 }, // La Crosse
+            { lat: 44.9778, lng: -93.2650 }, // Minneapolis
+            { lat: 46.8772, lng: -96.7898 }, // Fargo
+            { lat: 48.2325, lng: -101.296 }, // Minot
+            { lat: 48.5500, lng: -109.670 }, // Havre
+            { lat: 48.4100, lng: -114.330 }, // Whitefish
+            { lat: 47.6588, lng: -117.426 }, // Spokane
+            { lat: 47.6062, lng: -122.332 }, // Seattle
         ]
     },
     {
-        id: 'ew-corridor', // East-West (approx I-80 corridor)
+        id: 'bnsf-pnw-connector',
         path: [
-            { lat: 41.2, lng: -100.0 }, // Central NE
-            { lat: 41.2, lng: -96.0 },  // Omaha
-            { lat: 41.6, lng: -93.6 },  // Des Moines
-            { lat: 41.5, lng: -90.5 },  // Quad Cities
-            { lat: 41.8, lng: -87.6 },  // Chicago
+            { lat: 47.6588, lng: -117.426 }, // Spokane
+            { lat: 46.2396, lng: -119.100 }, // Pasco (Key Grain Hub)
+            { lat: 45.6387, lng: -122.675 }, // Portland
+            { lat: 45.6318, lng: -122.671 }, // Vancouver WA (Export)
+        ]
+    },
+
+    // --- BNSF Southern Transcon (Chicago -> LA) ---
+    {
+        id: 'bnsf-south-transcon',
+        path: [
+            { lat: 41.8781, lng: -87.6298 }, // Chicago
+            { lat: 40.8000, lng: -91.1000 }, // Fort Madison
+            { lat: 39.0997, lng: -94.5786 }, // Kansas City
+            { lat: 37.6872, lng: -97.3301 }, // Wichita
+            { lat: 36.3932, lng: -99.3000 }, // Woodward
+            { lat: 35.2220, lng: -101.831 }, // Amarillo (Feedlot Alley)
+            { lat: 34.4208, lng: -103.200 }, // Clovis
+            { lat: 34.6000, lng: -106.600 }, // Belen
+            { lat: 35.1983, lng: -111.651 }, // Flagstaff
+            { lat: 34.8500, lng: -114.600 }, // Needles
+            { lat: 34.9000, lng: -117.000 }, // Barstow
+            { lat: 34.0522, lng: -118.243 }, // Los Angeles
+        ]
+    },
+    {
+        id: 'bnsf-california-central',
+        path: [
+            { lat: 34.9000, lng: -117.000 }, // Barstow
+            { lat: 35.3733, lng: -119.018 }, // Bakersfield
+            { lat: 36.7378, lng: -119.787 }, // Fresno (Dairy)
+            { lat: 37.6391, lng: -120.996 }, // Modesto
+            { lat: 37.9577, lng: -121.290 }, // Stockton
+        ]
+    },
+
+    // --- Central Corridor (Denver -> West) ---
+    {
+        id: 'bnsf-central-corridor',
+        path: [
+            { lat: 40.8136, lng: -96.7026 }, // Lincoln
+            { lat: 40.5853, lng: -103.200 }, // Sterling
+            { lat: 39.7392, lng: -104.990 }, // Denver
+            { lat: 41.1400, lng: -104.800 }, // Cheyenne
+            { lat: 41.7600, lng: -107.200 }, // Rawlins
+            { lat: 41.2500, lng: -111.000 }, // Evanston
+            { lat: 41.2230, lng: -111.973 }, // Ogden
+        ]
+    },
+
+    // --- Texas Access (KC -> Gulf) ---
+    {
+        id: 'bnsf-texas-access',
+        path: [
+            { lat: 39.0997, lng: -94.5786 }, // Kansas City
+            { lat: 37.0902, lng: -94.5100 }, // Joplin
+            { lat: 36.1540, lng: -95.9928 }, // Tulsa
+            { lat: 32.7767, lng: -96.7970 }, // Dallas
+            { lat: 32.7555, lng: -97.3308 }, // Fort Worth
+            { lat: 31.5493, lng: -97.1467 }, // Waco
+            { lat: 29.7604, lng: -95.3698 }, // Houston
+            { lat: 29.3013, lng: -94.7977 }, // Galveston (Export)
+        ]
+    },
+
+    // --- Corn Belt Feeders ---
+    {
+        id: 'corn-belt-feeder-1',
+        path: [
+            { lat: 42.4900, lng: -96.4000 }, // Sioux City
+            { lat: 41.2565, lng: -95.9345 }, // Omaha
+            { lat: 40.8136, lng: -96.7026 }, // Lincoln
+            { lat: 39.7600, lng: -95.8000 }, // Topeka
+            { lat: 39.0997, lng: -94.5786 }, // Kansas City
+        ]
+    },
+    {
+        id: 'corn-belt-feeder-2',
+        path: [
+            { lat: 41.5868, lng: -93.6250 }, // Des Moines
+            { lat: 39.0997, lng: -94.5786 }, // Kansas City
+        ]
+    },
+
+    // --- Southeast Access (Simulated CSX/NS for Poultry Markets) ---
+    {
+        id: 'southeast-corridor',
+        path: [
+            { lat: 38.6270, lng: -90.1994 }, // St. Louis
+            { lat: 37.0000, lng: -89.1000 }, // Cairo
+            { lat: 35.1495, lng: -90.0490 }, // Memphis
+            { lat: 33.5186, lng: -86.8104 }, // Birmingham
+            { lat: 33.7490, lng: -84.3880 }, // Atlanta
+            { lat: 34.2979, lng: -83.8241 }, // Gainesville (Poultry Capital)
+        ]
+    },
+    {
+        id: 'east-coast-feeder',
+        path: [
+            { lat: 41.8781, lng: -87.6298 }, // Chicago
+            { lat: 41.0000, lng: -85.0000 }, // Fort Wayne
+            { lat: 40.4406, lng: -79.9959 }, // Pittsburgh
+            { lat: 39.2904, lng: -76.6122 }, // Baltimore
+            { lat: 38.6000, lng: -75.3000 }, // Delmarva (Poultry)
         ]
     }
 ];
@@ -76,93 +183,54 @@ export const checkRailProximity = (buyers: Buyer[]): Buyer[] => {
     });
 };
 
-import { usdaService } from './usdaService';
-
 export interface FreightQuote {
     origin: string;
     destination: string;
     distanceMiles: number;
     ratePerBushel: number;
-    totalCostPerCar: number; // Approx 3500 bu/car
+    totalCostPerCar: number;
     estimatedDays: number;
     isRealTime?: boolean;
 }
 
-// Default origin if none set
-// Default origin if none set
-const DEFAULT_ORIGIN = { lat: 46.095, lng: -96.370 }; // Campbell, MN
+export const calculateFreight = async (origin: { lat: number, lng: number }, destinationName: string): Promise<{ ratePerBushel: number, distance: number }> => {
+    // Simulate async calculation
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            // Parse destination from name/context (Simplified for now)
+            // In a real app, we'd have structured destination data
+            let state = "";
+            let city = "";
 
-// Cache for real-time rate adjustment
-let realTimeRateAdjustment = 1.0;
-let hasFetchedRealTime = false;
+            if (destinationName.includes("Modesto") || destinationName.includes("Penny Newman") || destinationName.includes("Stanislaus")) {
+                state = "CA";
+                city = "Modesto";
+            } else if (destinationName.includes("Yakima") || destinationName.includes("Pomeroy") || destinationName.includes("Northwest")) {
+                state = "WA";
+                city = "Yakima";
+            } else if (destinationName.includes("Hereford") || destinationName.includes("Texas")) {
+                state = "TX";
+                city = "Hereford";
+            } else if (destinationName.includes("Kansas")) {
+                state = "KS";
+                city = "Garden City";
+            } else {
+                // Default fallback for local/unknown
+                resolve({ ratePerBushel: 0.15, distance: 50 });
+                return;
+            }
 
-export const calculateFreight = async (destination: { lat: number, lng: number }, destName: string): Promise<FreightQuote> => {
-    // Get origin from settings
-    let originCoords = DEFAULT_ORIGIN;
-    let originName = "Campbell, MN";
+            // Use BNSF Rate Engine
+            const bnsfRate = bnsfService.calculateRate(state, city);
 
-    try {
-        const savedOrigin = localStorage.getItem('farmOrigin');
-        if (savedOrigin) {
-            const origin = JSON.parse(savedOrigin);
-            originName = `${origin.city}, ${origin.state}`;
+            // Estimate distance (just for display)
+            // This is secondary to the Tariff Rate which is the "Truth"
+            const distance = state === "CA" ? 1800 : (state === "WA" ? 1600 : (state === "TX" ? 900 : 400));
 
-            // In a real app, we would geocode this address.
-            // For now, we'll use a simple lookup or fallback to Campbell if it matches default
-            // To make this robust without a geocoding API call every time, we'd store coords in settings.
-            // For this demo, we'll stick to Campbell coords unless user changes it, 
-            // but ideally we need coords.
-
-            // Hack for demo: If user sets "Ames, IA", use Ames coords.
-            if (origin.city.toLowerCase() === 'ames') originCoords = { lat: 42.0308, lng: -93.6319 };
-            else if (origin.city.toLowerCase() === 'des moines') originCoords = { lat: 41.5868, lng: -93.6250 };
-            // ... add more or use a real geocoder
-        }
-    } catch (e) {
-        console.warn("Failed to load origin settings", e);
-    }
-
-    const distance = getDistanceFromLatLonInMiles(originCoords.lat, originCoords.lng, destination.lat, destination.lng);
-
-    // Try to fetch real-time data once
-    if (!hasFetchedRealTime) {
-        const latestRate = await usdaService.getLatestRailRates();
-        if (latestRate) {
-            // If USDA reports a high rate (e.g. > $5000/car for a standard route), adjust our base.
-            // Standard mock base was ~$4200 for long haul.
-            // Let's say baseline is $4000.
-            realTimeRateAdjustment = latestRate / 4000;
-            hasFetchedRealTime = true;
-        }
-    }
-
-    // Mock Rate Logic with Real-Time Adjustment:
-    // Base rate $0.40/bu + $0.001/mile (approx)
-    // If > 500 miles, slightly cheaper per mile rate.
-    // If > 1000 miles (e.g. to Texas), even cheaper per mile (unit train efficiency).
-    let perMileRate = 0.001;
-    if (distance > 1000) {
-        perMileRate = 0.0006;
-    } else if (distance > 500) {
-        perMileRate = 0.0008;
-    }
-
-    const baseRate = 0.40 * realTimeRateAdjustment; // Apply USDA factor
-    const ratePerBushel = baseRate + (distance * perMileRate);
-
-    const bushelsPerCar = 3500; // Small hopper
-    const totalCostPerCar = ratePerBushel * bushelsPerCar;
-
-    // 1 day per 300 miles + 2 days loading/unloading
-    const estimatedDays = Math.ceil(distance / 300) + 2;
-
-    return {
-        origin: originName,
-        destination: destName,
-        distanceMiles: Math.round(distance),
-        ratePerBushel: parseFloat(ratePerBushel.toFixed(2)),
-        totalCostPerCar: parseFloat(totalCostPerCar.toFixed(2)),
-        estimatedDays,
-        isRealTime: hasFetchedRealTime
-    };
+            resolve({
+                ratePerBushel: bnsfRate.ratePerBushel,
+                distance: distance
+            });
+        }, 100);
+    });
 };

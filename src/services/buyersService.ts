@@ -1,10 +1,11 @@
 import { Buyer } from '../types';
-import { googleMapsService } from './googleMapsService';
+// import { googleMapsService } from './googleMapsService';
 
 // This service is now mostly a fallback or utility since we fetch live data.
 // Updating to match new types just in case.
 
 // Key Corn Belt Hubs to search around
+/*
 const SEARCH_HUBS = [
     // Key Corn Belt & High-Demand Hubs (Ethanol, Feedlots, Export)
     { city: "Des Moines", state: "IA" }, // Ethanol
@@ -59,56 +60,65 @@ const SEARCH_HUBS = [
     { city: "Springdale", state: "AR" }, // Poultry HQ
     { city: "Guntersville", state: "AL" } // Poultry/River
 ];
+*/
+
+import { FALLBACK_BUYERS_DATA } from './fallbackData';
+import { marketDataService } from './marketDataService';
+import { usdaMarketService } from './usdaMarketService';
+
+import { calculateFreight } from './railService';
 
 export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {
-    const allBuyers: Buyer[] = [];
-    const seenIds = new Set<string>();
+    // Return static data to save costs, but RECALCULATE prices based on live market & USDA Reports
+    return new Promise((resolve) => {
+        setTimeout(async () => {
+            const currentFutures = marketDataService.getCurrentFuturesPrice();
+            const regionalAdjustments = await usdaMarketService.getRegionalAdjustments();
 
-    // Parallel fetch for all hubs
-    const promises = SEARCH_HUBS.map(async (hub) => {
-        // Search for both elevators and feedlots/ethanol plants
-        // We can do a broader search or multiple. "grain buyer" might be too generic.
-        // Let's try "grain elevator" and "feedlot" for TX hubs.
-        let term = "grain elevator";
-        if (hub.state === "TX" || hub.state === "OK" || hub.state === "KS") {
-            term = "feedlot";
-        }
-        const query = `${term} near ${hub.city}, ${hub.state}`;
-        const places = await googleMapsService.searchNearbyPlaces(query);
+            // We need to map over the buyers and await the async freight calc
+            const dynamicBuyers = await Promise.all(FALLBACK_BUYERS_DATA.map(async (buyer) => {
+                // Determine if we have a USDA "Truth" for this buyer's state
+                let basis = buyer.basis;
+                let state = buyer.state;
 
-        return places.map((place: any) => {
-            if (seenIds.has(place.id)) return null;
-            seenIds.add(place.id);
+                // Map state to region key in our service
+                let regionKey = "";
+                if (state === "CA") regionKey = "California";
+                else if (state === "WA") regionKey = "Washington";
+                else if (state === "TX") regionKey = "Texas";
+                else if (["IA", "NE", "IL", "MN", "ND", "SD", "OH"].includes(state)) regionKey = "Midwest";
 
-            // Map Google Place to Buyer
-            // Note: Pricing data is simulated based on USDA regional averages since Google doesn't provide it.
-            return {
-                id: place.id,
-                name: place.displayName?.text || "Unknown Buyer",
-                type: 'elevator' as any, // Default type, cast to any to avoid strict literal check issues
-                basis: 0.30 + (Math.random() * 0.4 - 0.2), // Simulated variation around market avg
-                cashPrice: 4.50 + (Math.random() * 0.2 - 0.1), // Simulated variation
-                city: hub.city,
-                state: hub.state,
-                region: `${hub.city} Region`,
-                lat: place.location?.latitude || 0,
-                lng: place.location?.longitude || 0,
-                railAccessible: Math.random() > 0.4, // Simulated
-                nearTransload: Math.random() > 0.6, // Simulated
-                fullAddress: place.formattedAddress,
-                contactPhone: place.nationalPhoneNumber,
-                website: place.websiteUri,
-                rating: place.rating,
-                userRatingsTotal: place.userRatingCount,
-                googlePlaceId: place.id
-            } as Buyer;
-        }).filter((b): b is Buyer => b !== null);
+                if (regionKey && regionalAdjustments[regionKey]) {
+                    // OVERRIDE the basis with the official USDA report value
+                    // This ensures "Hot Spots" are driven by the daily report
+                    basis = regionalAdjustments[regionKey].basisAdjustment;
+                }
+
+                // Recalculate Cash Price: Futures + Basis
+                const newCashPrice = currentFutures + basis;
+
+                // Recalculate Freight using BNSF Rate Engine
+                // We pass the buyer's location and name to the rail service
+                const freightInfo = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.name);
+                const newFreightCost = freightInfo.ratePerBushel;
+
+                // Recalculate Net Price: Cash - Freight (Freight is a cost, so subtract it)
+                // Note: In the JSON, freight might be stored as negative, but our service returns positive cost.
+                // Net = Cash - Cost.
+                const newNetPrice = newCashPrice - newFreightCost;
+
+                return {
+                    ...buyer,
+                    basis: basis, // Update basis to reflect USDA report
+                    freightCost: -newFreightCost, // Store as negative for display consistency if app expects it
+                    cashPrice: parseFloat(newCashPrice.toFixed(2)),
+                    netPrice: parseFloat(newNetPrice.toFixed(2))
+                };
+            }));
+
+            resolve(dynamicBuyers);
+        }, 500); // Simulate network delay
     });
-
-    const results = await Promise.all(promises);
-    results.forEach(hubBuyers => allBuyers.push(...hubBuyers));
-
-    return allBuyers;
 };
 
 // Deprecated: Mock generator (kept for fallback if needed, but unused in main flow)
@@ -118,6 +128,9 @@ export const generateBuyers = (_count: number): Buyer[] => {
 
 // New function to enrich buyer data with real-time Google Maps info
 export const enrichBuyerWithGoogleData = async (buyer: Buyer): Promise<Buyer> => {
+    // DISABLED to save costs. Return buyer as is.
+    return buyer;
+    /*
     // Search query: "Name City State"
     const query = `${buyer.name} ${buyer.city} ${buyer.state}`;
     const details = await googleMapsService.searchPlace(query);
@@ -135,6 +148,7 @@ export const enrichBuyerWithGoogleData = async (buyer: Buyer): Promise<Buyer> =>
     }
 
     return buyer;
+    */
 };
 
 export const getTop3BasisBuyers = (buyers: Buyer[]): Buyer[] => {

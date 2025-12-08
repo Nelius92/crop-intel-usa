@@ -42,6 +42,7 @@ export interface Buyer extends Coordinates {
     verified?: boolean; // True if data passed the AI Auditor check
     isManual?: boolean; // True if manually entered by user
     lastUpdated?: string; // ISO timestamp
+    confidenceScore?: number; // 0-100 score of data reliability
 }
 
 export interface MarketOracle {
@@ -60,4 +61,16 @@ export interface RailNode {
 export interface RailNetwork {
     id: string;
     path: RailNode[];
+}
+
+export interface Transloader {
+    id: string;
+    name: string;
+    city: string;
+    state: string;
+    lat: number;
+    lng: number;
+    railroad: string[]; // e.g., ['BNSF', 'UP']
+    commodities: string[]; // e.g., ['Grain', 'Liquids']
+    type: 'transload';
 }

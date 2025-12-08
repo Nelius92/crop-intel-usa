@@ -3,13 +3,15 @@ import { CornMap } from '../components/CornMap';
 import { MarketIntelPanel } from '../components/MarketIntelPanel';
 import { geminiService } from '../services/gemini';
 import { fetchRealBuyersFromGoogle } from '../services/buyersService';
+import { fetchTransloaders } from '../services/transloaderService';
 import { calculateFreight } from '../services/railService';
-import { HeatmapPoint, Buyer } from '../types';
+import { HeatmapPoint, Buyer, Transloader } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export const HeatMapPage: React.FC = () => {
     const [heatmapData, setHeatmapData] = useState<HeatmapPoint[]>([]);
     const [buyers, setBuyers] = useState<Buyer[]>([]);
+    const [transloaders, setTransloaders] = useState<Transloader[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -22,7 +24,11 @@ export const HeatMapPage: React.FC = () => {
             const heatData = await geminiService.getLiveHeatmapData();
             setHeatmapData(heatData);
 
-            // 2. Fetch Buyers (for the Top 3 Widget)
+            // 2. Fetch Transloaders
+            const transloaderData = await fetchTransloaders();
+            setTransloaders(transloaderData);
+
+            // 3. Fetch Buyers (for the Top 3 Widget)
             // Get Oracle Truths first
             const oracleData = await geminiService.getMarketOracle();
 
@@ -66,16 +72,43 @@ export const HeatMapPage: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Calculate Top 3 States for "Glow" effect
+    const [topStates, setTopStates] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (buyers.length === 0) return;
+
+        // Group by state and calc avg net price
+        const stateStats: Record<string, { total: number, count: number }> = {};
+        buyers.forEach(b => {
+            if (!stateStats[b.state]) stateStats[b.state] = { total: 0, count: 0 };
+            stateStats[b.state].total += (b.netPrice || 0);
+            stateStats[b.state].count++;
+        });
+
+        const stateAvgs = Object.entries(stateStats).map(([state, stats]) => ({
+            state,
+            avg: stats.total / stats.count
+        }));
+
+        // Sort desc
+        const top3 = stateAvgs.sort((a, b) => b.avg - a.avg).slice(0, 3).map(s => s.state);
+        setTopStates(top3);
+    }, [buyers]);
+
     return (
         <div className="w-full h-full relative">
             <CornMap
                 showHeatmap={true}
                 showBuyers={false}
-                showRail={false}
+                showRail={true}
+                showTransloaders={true}
                 view="usa"
                 theme="green-glow"
                 heatmapData={heatmapData}
+                transloaders={transloaders}
                 hoveredRegionId={null}
+                topStates={topStates}
             />
 
             {/* Overlay Elements */}

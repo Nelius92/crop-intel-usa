@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { HeatmapPoint, Buyer } from '../types';
+import { HeatmapPoint, Buyer, Transloader } from '../types';
 import { RAIL_LINES } from '../services/railService';
 import { BuyerMarkers } from './BuyerMarkers';
 import { OpportunityDrawer } from './OpportunityDrawer';
@@ -12,28 +12,49 @@ interface CornMapProps {
     showHeatmap: boolean;
     showBuyers: boolean;
     showRail: boolean;
+    showTransloaders?: boolean;
     buyers?: Buyer[];
     heatmapData?: HeatmapPoint[]; // Live heatmap data
+    transloaders?: Transloader[];
     heatmapMode?: 'default' | 'buyers';
     theme?: 'default' | 'green-glow';
     view?: 'default' | 'usa';
+    topStates?: string[]; // List of state codes to highlight (e.g. ['CA', 'TX'])
     hoveredRegionId?: string | null;
 }
+
+const STATE_CENTERS: Record<string, [number, number]> = {
+    'CA': [-119.4179, 36.7783],
+    'TX': [-99.9018, 31.9686],
+    'WA': [-120.7401, 47.7511],
+    'ID': [-114.7420, 44.0682],
+    'OR': [-120.5542, 43.8041],
+    'IL': [-89.3985, 40.6331],
+    'IA': [-93.0977, 41.8780],
+    'NE': [-99.9018, 41.4925],
+    'MN': [-94.6859, 46.7296],
+    'KS': [-98.4842, 39.0119],
+    'MO': [-92.2884, 37.9643]
+};
 
 export const CornMap: React.FC<CornMapProps> = ({
     showHeatmap,
     showBuyers,
     showRail,
+    showTransloaders = true,
     buyers = [],
     heatmapData = [],
+    transloaders = [],
     heatmapMode = 'default',
     // theme = 'default', // Unused for now
     view = 'default',
-    hoveredRegionId
+    hoveredRegionId,
+    topStates = []
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
-    const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | null>(null);
+    const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | Transloader | null>(null);
+    const [styleLoaded, setStyleLoaded] = useState(false);
 
     useEffect(() => {
         if (map.current) return; // Initialize map only once
@@ -50,6 +71,8 @@ export const CornMap: React.FC<CornMapProps> = ({
         });
 
         map.current.on('load', () => {
+            setStyleLoaded(true);
+
             // Add Rail Source
             map.current?.addSource('rail-lines', {
                 type: 'geojson',
@@ -162,6 +185,59 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
+            // Add State Glow Source
+            map.current?.addSource('state-glow', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            // Add State Glow Layer (Large pulsing circles)
+            map.current?.addLayer({
+                id: 'state-glow-layer',
+                type: 'circle',
+                source: 'state-glow',
+                paint: {
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 40, // Large at low zoom
+                        6, 80
+                    ],
+                    'circle-color': '#22c55e', // Strong Green
+                    'circle-opacity': 0.3, // Semi-transparent
+                    'circle-blur': 0.8, // Very blurry for "glow" effect
+                    'circle-stroke-width': 0
+                }
+            });
+
+            // Add Transloader Source
+            map.current?.addSource('transloaders', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            // Add Transloader Layer (Purple Circles with Icon feel)
+            map.current?.addLayer({
+                id: 'transloader-layer',
+                type: 'circle',
+                source: 'transloaders',
+                minzoom: 3,
+                paint: {
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        3, 3,
+                        10, 8
+                    ],
+                    'circle-color': '#a855f7', // Purple
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': 1.5,
+                    'circle-opacity': 0.9
+                }
+            });
+
             // Click event for heatmap points
             map.current?.on('click', 'corn-point-layer', (e) => {
                 if (e.features && e.features[0]) {
@@ -170,20 +246,70 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
+            // Click event for transloaders
+            map.current?.on('click', 'transloader-layer', (e) => {
+                if (e.features && e.features[0]) {
+                    const props = e.features[0].properties as any;
+
+                    // Safely parse arrays if they come back as strings from Mapbox
+                    let railroad = props.railroad;
+                    let commodities = props.commodities;
+
+                    try {
+                        if (typeof railroad === 'string') {
+                            railroad = JSON.parse(railroad);
+                        }
+                        if (typeof commodities === 'string') {
+                            commodities = JSON.parse(commodities);
+                        }
+                    } catch (err) {
+                        console.warn('Failed to parse transloader props', err);
+                        // Fallback to wrapping in array if parse fails but it's a string
+                        if (typeof railroad === 'string') railroad = [railroad];
+                        if (typeof commodities === 'string') commodities = [commodities];
+                    }
+
+                    setSelectedItem({
+                        ...props,
+                        railroad: Array.isArray(railroad) ? railroad : [],
+                        commodities: Array.isArray(commodities) ? commodities : [],
+                        type: 'transload'
+                    } as Transloader);
+                }
+            });
+
             // Change cursor on hover
-            map.current?.on('mouseenter', 'corn-point-layer', () => {
-                if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+            const layers = ['corn-point-layer', 'transloader-layer'];
+            layers.forEach(layer => {
+                map.current?.on('mouseenter', layer, () => {
+                    if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+                });
+                map.current?.on('mouseleave', layer, () => {
+                    if (map.current) map.current.getCanvas().style.cursor = '';
+                });
             });
-            map.current?.on('mouseleave', 'corn-point-layer', () => {
-                if (map.current) map.current.getCanvas().style.cursor = '';
-            });
+
+            // Pulse Animation for Glow
+            let opacity = 0.3;
+            let direction = 1;
+            const animateGlow = () => {
+                if (!map.current?.getLayer('state-glow-layer')) return;
+
+                opacity += 0.005 * direction;
+                if (opacity > 0.5) direction = -1;
+                if (opacity < 0.2) direction = 1;
+
+                map.current.setPaintProperty('state-glow-layer', 'circle-opacity', opacity);
+                requestAnimationFrame(animateGlow);
+            };
+            animateGlow();
 
         });
     }, []);
 
     // Update heatmap data
     useEffect(() => {
-        if (!map.current || !map.current.isStyleLoaded()) return;
+        if (!map.current || !styleLoaded) return;
 
         const source = map.current.getSource('corn-heat') as mapboxgl.GeoJSONSource;
         if (source) {
@@ -213,7 +339,45 @@ export const CornMap: React.FC<CornMapProps> = ({
 
             source.setData({ type: 'FeatureCollection', features });
         }
-    }, [heatmapData, buyers, heatmapMode]);
+    }, [heatmapData, buyers, heatmapMode, styleLoaded]);
+
+    // Update State Glow Data
+    useEffect(() => {
+        if (!map.current || !styleLoaded) return;
+        const source = map.current.getSource('state-glow') as mapboxgl.GeoJSONSource;
+
+        if (source && topStates.length > 0) {
+            const features = topStates
+                .map(stateCode => {
+                    const center = STATE_CENTERS[stateCode];
+                    if (!center) return null;
+                    return {
+                        type: 'Feature',
+                        properties: { state: stateCode },
+                        geometry: { type: 'Point', coordinates: center }
+                    };
+                })
+                .filter(f => f !== null) as any[];
+
+            source.setData({ type: 'FeatureCollection', features });
+        } else if (source) {
+            source.setData({ type: 'FeatureCollection', features: [] });
+        }
+    }, [topStates, styleLoaded]);
+
+    // Update Transloader Data
+    useEffect(() => {
+        if (!map.current || !styleLoaded) return;
+        const source = map.current.getSource('transloaders') as mapboxgl.GeoJSONSource;
+        if (source && transloaders) {
+            const features = transloaders.map(t => ({
+                type: 'Feature',
+                properties: t,
+                geometry: { type: 'Point', coordinates: [t.lng, t.lat] }
+            }));
+            source.setData({ type: 'FeatureCollection', features } as any);
+        }
+    }, [transloaders, styleLoaded]);
 
     // Handle Hover Effect from Top 3 Card
     useEffect(() => {
@@ -276,8 +440,10 @@ export const CornMap: React.FC<CornMapProps> = ({
         setVisibility('corn-heat-layer', showHeatmap);
         setVisibility('corn-point-layer', showHeatmap);
         setVisibility('rail-layer', showRail);
+        setVisibility('transloader-layer', !!showTransloaders);
+        setVisibility('state-glow-layer', true); // Always show glow if data present
 
-    }, [showHeatmap, showRail]);
+    }, [showHeatmap, showRail, showTransloaders]);
 
     return (
         <div className="relative w-full h-full">

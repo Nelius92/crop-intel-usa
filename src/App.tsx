@@ -2,12 +2,20 @@ import { useState } from 'react';
 import { HeatMapPage } from './pages/HeatMapPage';
 import { BuyersPage } from './pages/BuyersPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { UnderConstructionPage } from './pages/UnderConstructionPage';
 import { BottomNav } from './components/BottomNav';
 import { CloudHealthCheck } from './components/CloudHealthCheck';
 import { Sprout } from 'lucide-react';
 
+// Toggle this to show/hide the under construction page
+const SHOW_UNDER_CONSTRUCTION = true;
+
 function App() {
     const [activeTab, setActiveTab] = useState<'map' | 'buyers' | 'settings'>('map');
+
+    if (SHOW_UNDER_CONSTRUCTION) {
+        return <UnderConstructionPage />;
+    }
 
     return (
         <div className="w-screen h-screen bg-corn-base overflow-hidden relative">
