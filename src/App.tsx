@@ -13,7 +13,19 @@ const SHOW_UNDER_CONSTRUCTION = true;
 function App() {
     const [activeTab, setActiveTab] = useState<'map' | 'buyers' | 'settings'>('map');
 
-    if (SHOW_UNDER_CONSTRUCTION) {
+    // Developer Mode Bypass Logic
+    const [isDevMode] = useState(() => {
+        // Check URL parameter: ?dev=true
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('dev') === 'true') {
+            localStorage.setItem('corn_intel_dev_mode', 'true');
+            return true;
+        }
+        // Check localStorage
+        return localStorage.getItem('corn_intel_dev_mode') === 'true';
+    });
+
+    if (SHOW_UNDER_CONSTRUCTION && !isDevMode) {
         return <UnderConstructionPage />;
     }
 
