@@ -26,7 +26,18 @@ export const FreightCalculator: React.FC<FreightCalculatorProps> = ({ buyers }) 
                 const results = await Promise.all(buyers.map(async (buyer) => {
                     const quote = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.city);
                     const netPrice = buyer.cashPrice - quote.ratePerBushel;
-                    return { buyer, quote, netPrice };
+                    return {
+                        buyer,
+                        quote: {
+                            ...quote,
+                            origin: "Campbell, MN", // Hardcoded origin for now
+                            destination: buyer.city,
+                            distanceMiles: quote.distance,
+                            totalCostPerCar: quote.ratePerBushel * 3500, // Approx bushels per car
+                            estimatedDays: Math.ceil(quote.distance / 400) // Approx 400 miles per day
+                        },
+                        netPrice
+                    };
                 }));
 
                 // Sort by Net Price descending and take top 3

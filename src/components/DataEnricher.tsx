@@ -3,7 +3,7 @@ import { FALLBACK_BUYERS_DATA } from '../services/fallbackData';
 import { enrichBuyerWithGoogleData } from '../services/buyersService';
 
 export const DataEnricher: React.FC = () => {
-    const [jsonOutput, setJsonOutput] = React.useState("");
+    // const [jsonOutput, setJsonOutput] = React.useState("");
 
     useEffect(() => {
         const enrich = async () => {
@@ -34,7 +34,7 @@ export const DataEnricher: React.FC = () => {
             console.log("START_JSON");
             console.log(finalJson);
             console.log("END_JSON");
-            setJsonOutput(JSON.stringify(enrichedBuyers, null, 4));
+            // setJsonOutput(JSON.stringify(enrichedBuyers, null, 4));
         };
 
         enrich();

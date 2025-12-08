@@ -193,7 +193,7 @@ export interface FreightQuote {
     isRealTime?: boolean;
 }
 
-export const calculateFreight = async (origin: { lat: number, lng: number }, destinationName: string): Promise<{ ratePerBushel: number, distance: number }> => {
+export const calculateFreight = async (_origin: { lat: number, lng: number }, destinationName: string): Promise<{ ratePerBushel: number, distance: number }> => {
     // Simulate async calculation
     return new Promise((resolve) => {
         setTimeout(() => {
