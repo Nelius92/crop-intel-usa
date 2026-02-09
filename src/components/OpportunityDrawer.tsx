@@ -9,7 +9,7 @@ interface OpportunityDrawerProps {
 }
 
 export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onClose }) => {
-    const isBuyer = (item: any): item is Buyer => 'type' in item && item.type === 'elevator'; // Assuming buyer type is usually elevator/feedlot
+    const isBuyer = (item: any): item is Buyer => 'type' in item && ['elevator', 'processor', 'feedlot', 'shuttle', 'export', 'river', 'ethanol'].includes(item.type);
     const isTransloader = (item: any): item is Transloader => 'type' in item && item.type === 'transload';
 
     if (!item) return null;
@@ -24,7 +24,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                     className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none px-4 pb-4"
                 >
-                    <div className="w-full max-w-lg bg-[#18181b] border border-zinc-800 shadow-2xl rounded-3xl overflow-hidden pointer-events-auto ring-1 ring-white/10">
+                    <div className="w-full max-w-lg bg-[#120202]/90 backdrop-blur-xl border border-white/10 shadow-neon-red rounded-3xl overflow-hidden pointer-events-auto ring-1 ring-white/5">
 
                         {/* Header Section */}
                         <div className="relative p-6 pb-2">
@@ -75,6 +75,15 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                         </>
                                     )}
                                 </div>
+                                {/* Data Source Indicator for Buyers */}
+                                {isBuyer(item) && (
+                                    <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                        <span>
+                                            Source: {(item as any).dataSource === 'usda-ams' ? 'USDA AMS' : 'CME + Regional Basis'} • Updated: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Buyer Actions (Only for Buyers) */}
@@ -100,7 +109,10 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                         <ActionButton
                                             icon={<Globe size={20} />}
                                             label="Website"
-                                            onClick={() => window.open(item.website, '_blank')}
+                                            onClick={() => {
+                                                const url = item.website?.startsWith('http') ? item.website : `https://${item.website}`;
+                                                window.open(url, '_blank');
+                                            }}
                                             disabled={!item.website}
                                         />
                                         <ActionButton

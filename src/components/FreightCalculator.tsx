@@ -54,7 +54,7 @@ export const FreightCalculator: React.FC<FreightCalculatorProps> = ({ buyers }) 
     }, [buyers]);
 
     return (
-        <div className="bg-zinc-900/90 backdrop-blur-md border border-zinc-800 rounded-xl p-4 shadow-2xl h-full flex flex-col">
+        <div className="bg-[#120202]/80 backdrop-blur-xl border border-white/5 rounded-2xl p-5 shadow-glass hover:shadow-glow transition-all duration-300 h-full flex flex-col animate-fade-in-up">
             <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2 shrink-0">
                 <span className="text-cyan-400">🚂</span> Top 3 Net Deals
                 <div className="ml-auto flex flex-col items-end">

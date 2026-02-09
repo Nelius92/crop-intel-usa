@@ -3,6 +3,8 @@ export interface Coordinates {
     lng: number;
 }
 
+export type CropType = 'Yellow Corn' | 'White Corn' | 'Soybeans' | 'Wheat' | 'Sunflowers';
+
 export interface HeatmapPoint extends Coordinates {
     id: string;
     cornPrice: number; // Cash price

@@ -118,3 +118,7 @@ dist
 
 # macOS
 .DS_Store
+certs/
+.env.bnsf
+*.pem
+*.p12

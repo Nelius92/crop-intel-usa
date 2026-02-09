@@ -2,13 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { CornMap } from '../components/CornMap';
 import { MarketIntelPanel } from '../components/MarketIntelPanel';
 import { geminiService } from '../services/gemini';
-import { fetchRealBuyersFromGoogle } from '../services/buyersService';
+
 import { fetchTransloaders } from '../services/transloaderService';
 import { calculateFreight } from '../services/railService';
-import { HeatmapPoint, Buyer, Transloader } from '../types';
+import { CropType, HeatmapPoint, Buyer, Transloader } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 
-export const HeatMapPage: React.FC = () => {
+interface HeatMapPageProps {
+    selectedCrop: CropType;
+}
+
+export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
     const [heatmapData, setHeatmapData] = useState<HeatmapPoint[]>([]);
     const [buyers, setBuyers] = useState<Buyer[]>([]);
     const [transloaders, setTransloaders] = useState<Transloader[]>([]);
@@ -20,26 +24,27 @@ export const HeatMapPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            // 1. Fetch Heatmap Data (for the map)
-            const heatData = await geminiService.getLiveHeatmapData();
+            // 1. Fetch Heatmap Data (for the map) - Pass selectedCrop
+            const heatData = await geminiService.getLiveHeatmapData(selectedCrop);
             setHeatmapData(heatData);
 
-            // 2. Fetch Transloaders
+            // 2. Fetch Transloaders (Keep static for now, or filter if we had crop types)
             const transloaderData = await fetchTransloaders();
             setTransloaders(transloaderData);
 
-            // 3. Fetch Buyers (for the Top 3 Widget)
+            // 3. Fetch Buyers (for the Top 3 Widget) - Pass selectedCrop
             // Get Oracle Truths first
-            const oracleData = await geminiService.getMarketOracle();
+            const oracleData = await geminiService.getMarketOracle(selectedCrop);
 
-            // Get Google Buyers
-            const googleData = await fetchRealBuyersFromGoogle();
+            // Use Gemini for Live Buyer Data (Dynamic per crop)
+            const liveBuyers = await geminiService.getLiveBuyerData(selectedCrop);
 
-            if (googleData.length > 0) {
+            if (liveBuyers.length > 0) {
                 // Enrich with Oracle Data
-                const enrichedData = await geminiService.enrichBuyersWithMarketData(googleData, oracleData);
+                const enrichedData = await geminiService.enrichBuyersWithMarketData(liveBuyers, oracleData, selectedCrop);
 
                 // Calculate Freight & Net Price
+                // Freight calculation might need name/lat/lng
                 const buyersWithFreight = await Promise.all(enrichedData.map(async (buyer) => {
                     const freight = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.name);
                     const netPrice = (buyer.cashPrice || 0) - freight.ratePerBushel;
@@ -70,7 +75,7 @@ export const HeatMapPage: React.FC = () => {
         // Refresh every 30 minutes (1800000 ms)
         const interval = setInterval(fetchData, 1800000);
         return () => clearInterval(interval);
-    }, []);
+    }, [selectedCrop]);
 
     // Calculate Top 3 States for "Glow" effect
     const [topStates, setTopStates] = useState<string[]>([]);
@@ -138,7 +143,7 @@ export const HeatMapPage: React.FC = () => {
             <button
                 onClick={fetchData}
                 disabled={loading}
-                className="absolute top-20 right-4 sm:right-96 mr-0 sm:mr-4 p-2 bg-corn-card/50 backdrop-blur-md rounded-full border border-corn-accent/20 text-corn-accent hover:bg-corn-accent/10 transition-colors disabled:opacity-50 pointer-events-auto z-20"
+                className="absolute top-20 right-4 sm:right-96 mr-0 sm:mr-4 p-2.5 bg-[#120202]/60 backdrop-blur-xl rounded-full border border-white/10 text-corn-accent shadow-glass hover:shadow-glow hover:bg-corn-accent/10 transition-all active:scale-95 disabled:opacity-50 pointer-events-auto z-20"
                 title="Refresh Live Data"
             >
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />

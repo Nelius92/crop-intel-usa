@@ -15,7 +15,7 @@ export const TopPricesCard: React.FC<TopPricesCardProps> = ({ data, loading, onH
         .slice(0, 3);
 
     return (
-        <div className="w-80 bg-corn-card/80 backdrop-blur-md rounded-xl border border-corn-accent/20 p-4 shadow-2xl">
+        <div className="w-80 bg-[#120202]/80 backdrop-blur-xl rounded-2xl border border-white/5 shadow-glass hover:shadow-glow transition-all duration-500 p-5 animate-fade-in-up">
             <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="text-corn-accent" size={18} />
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top 3 Markets</h3>

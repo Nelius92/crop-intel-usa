@@ -9,9 +9,9 @@ interface BuyerTableProps {
 
 export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect }) => {
     return (
-        <div className="w-full bg-corn-card/50 backdrop-blur-md rounded-xl border border-corn-accent/10 flex flex-col">
-            <div className="p-4 border-b border-corn-accent/10">
-                <h3 className="text-lg font-bold text-white">Buyer Directory</h3>
+        <div className="w-full bg-[#120202]/60 backdrop-blur-xl rounded-2xl border border-white/5 shadow-depth overflow-hidden flex flex-col h-full animate-fade-in-up">
+            <div className="p-4 border-b border-white/5 bg-gradient-to-r from-red-900/10 to-transparent">
+                <h3 className="text-lg font-bold text-white tracking-wide">Buyer Directory</h3>
             </div>
 
             <div className="w-full">
@@ -28,6 +28,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect }) => {
                                 <th className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Cash</th>
                                 <th className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right text-red-400">Freight</th>
                                 <th className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right text-green-400">Net Price</th>
+                                <th className="px-4 py-4 text-xs font-semibold text-emerald-400 uppercase tracking-wider text-right">vs Hank</th>
                                 <th className="px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-center">Logistics</th>
                             </tr>
                         </thead>
@@ -75,10 +76,17 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect }) => {
                                         ${buyer.cashPrice?.toFixed(2)}
                                     </td>
                                     <td className="px-4 py-4 text-right font-mono text-sm text-red-400">
-                                        -${buyer.freightCost?.toFixed(2) || '0.00'}
+                                        ${Math.abs(buyer.freightCost ?? 0).toFixed(2)}
                                     </td>
                                     <td className="px-4 py-4 text-right font-mono text-base font-bold text-green-400">
                                         ${buyer.netPrice?.toFixed(2) || '-'}
+                                    </td>
+                                    <td className="px-4 py-4 text-right font-mono text-sm">
+                                        {buyer.benchmarkDiff !== undefined ? (
+                                            <span className={`font-semibold ${buyer.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                                                {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
+                                            </span>
+                                        ) : '-'}
                                     </td>
                                     <td className="px-4 py-4 flex justify-center gap-2">
                                         {buyer.railAccessible && (

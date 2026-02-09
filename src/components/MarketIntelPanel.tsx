@@ -15,7 +15,7 @@ export const MarketIntelPanel: React.FC<MarketIntelPanelProps> = ({ buyers }) =>
     const topBuyers = buyers.slice(0, 3);
 
     return (
-        <div className={`w-full bg-zinc-900/90 backdrop-blur-md rounded-xl border border-white/10 flex flex-col relative overflow-hidden group shadow-2xl transition-all duration-300 ${isMinimized ? 'h-[60px]' : 'h-full'}`}>
+        <div className={`w-full bg-[#120202]/80 backdrop-blur-xl rounded-2xl border border-white/5 flex flex-col relative overflow-hidden group shadow-glass hover:shadow-glow transition-all duration-300 animate-fade-in-up ${isMinimized ? 'h-[60px]' : 'h-full'}`}>
             {/* Background Gradient Effect */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-emerald-500/20 transition-all duration-700 pointer-events-none"></div>
 

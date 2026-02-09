@@ -17,8 +17,8 @@ interface CornMapProps {
     heatmapData?: HeatmapPoint[]; // Live heatmap data
     transloaders?: Transloader[];
     heatmapMode?: 'default' | 'buyers';
-    theme?: 'default' | 'green-glow';
     view?: 'default' | 'usa';
+    theme?: string;
     topStates?: string[]; // List of state codes to highlight (e.g. ['CA', 'TX'])
     hoveredRegionId?: string | null;
 }
@@ -34,7 +34,25 @@ const STATE_CENTERS: Record<string, [number, number]> = {
     'NE': [-99.9018, 41.4925],
     'MN': [-94.6859, 46.7296],
     'KS': [-98.4842, 39.0119],
-    'MO': [-92.2884, 37.9643]
+    'MO': [-92.2884, 37.9643],
+    'SD': [-100.2263, 44.2998],
+    'ND': [-101.0020, 47.5515],
+    'OH': [-82.9071, 40.4173],
+    'IN': [-86.1261, 40.2672]
+};
+
+const STATE_NAME_TO_CODE: Record<string, string> = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
+    'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
+    'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
+    'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH',
+    'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC',
+    'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA',
+    'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD', 'Tennessee': 'TN',
+    'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA',
+    'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY'
 };
 
 export const CornMap: React.FC<CornMapProps> = ({
@@ -46,7 +64,6 @@ export const CornMap: React.FC<CornMapProps> = ({
     heatmapData = [],
     transloaders = [],
     heatmapMode = 'default',
-    // theme = 'default', // Unused for now
     view = 'default',
     hoveredRegionId,
     topStates = []
@@ -55,377 +72,260 @@ export const CornMap: React.FC<CornMapProps> = ({
     const map = useRef<mapboxgl.Map | null>(null);
     const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | Transloader | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
+    const [zoomedState, setZoomedState] = useState<string | null>(null);
+
+    // Compute State Metrics for Coloring/Blinking
+    const stateMetrics = React.useMemo(() => {
+        const metrics: Record<string, { maxPrice: number, count: number, isHot: boolean }> = {};
+        buyers.forEach(b => {
+            if (!metrics[b.state]) metrics[b.state] = { maxPrice: 0, count: 0, isHot: false };
+            metrics[b.state].count++;
+            if ((b.netPrice || 0) > metrics[b.state].maxPrice) metrics[b.state].maxPrice = b.netPrice || 0;
+        });
+
+        Object.keys(metrics).forEach(state => {
+            if (metrics[state].maxPrice > 4.5 || topStates.includes(state)) {
+                metrics[state].isHot = true;
+            }
+        });
+        return metrics;
+    }, [buyers, topStates]);
 
     useEffect(() => {
-        if (map.current) return; // Initialize map only once
+        if (map.current) return;
 
         const center: [number, number] = view === 'usa' ? [-98.5795, 39.8283] : [-93.6, 42.0];
         const zoom = view === 'usa' ? 3.5 : 5.5;
 
         map.current = new mapboxgl.Map({
             container: mapContainer.current!,
-            style: 'mapbox://styles/mapbox/dark-v11', // Revert to Dark Theme
+            style: 'mapbox://styles/mapbox/dark-v11',
             center: center,
             zoom: zoom,
-            pitch: 0, // Keep flat for Network Map feel, but dark
+            pitch: 0,
+            projection: { name: 'mercator' }
         });
 
         map.current.on('load', () => {
             setStyleLoaded(true);
 
-            // Add Rail Source
-            map.current?.addSource('rail-lines', {
+            // 1. Add US States Source
+            map.current?.addSource('us-states', {
                 type: 'geojson',
-                data: {
-                    type: 'FeatureCollection',
-                    features: RAIL_LINES.map(line => ({
-                        type: 'Feature',
-                        properties: { id: line.id },
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: line.path.map(p => [p.lng, p.lat])
-                        }
-                    }))
-                }
+                data: 'https://docs.mapbox.com/mapbox-gl-js/assets/us_states.geojson'
             });
 
-            // Add Rail Layer - Network Style
+            // 2. Add State Fill Layer (Base)
             map.current?.addLayer({
-                id: 'rail-layer',
-                type: 'line',
-                source: 'rail-lines',
-                layout: {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
+                id: 'state-fill',
+                type: 'fill',
+                source: 'us-states',
                 paint: {
-                    'line-color': '#f97316', // Bright BNSF Orange for contrast on dark
-                    'line-width': 3,
-                    'line-opacity': 0.8,
+                    'fill-color': '#000000',
+                    'fill-opacity': 0
+                }
+            }, 'waterway-label');
+
+            // 3. Add State Border Layer (Static Base)
+            map.current?.addLayer({
+                id: 'state-border',
+                type: 'line',
+                source: 'us-states',
+                paint: {
+                    'line-color': '#06b6d4',
+                    'line-width': 1,
+                    'line-opacity': 0.1 // Static low opacity
                 }
             });
 
-            // Add Heatmap Source
+            // 4. Add Highlighted Border Layer (For Animation)
+            map.current?.addLayer({
+                id: 'state-border-highlight',
+                type: 'line',
+                source: 'us-states',
+                paint: {
+                    'line-color': '#22c55e', // Green for money/opportunity
+                    'line-width': 3,
+                    'line-opacity': 0 // Starts hidden, animated later
+                },
+                filter: ['in', 'STATE_NAME', ''] // Default empty filter
+            });
+
+            // --- Rail Network Layer (Load from GeoJSON with owner-based styling) ---
+            // Try loading comprehensive GeoJSON first, fallback to static RAIL_LINES
+            fetch('/data/us-railroads.geojson')
+                .then(response => response.ok ? response.json() : Promise.reject('GeoJSON not available'))
+                .then(geojsonData => {
+                    if (!map.current) return;
+
+                    map.current.addSource('us-rail-network', {
+                        type: 'geojson',
+                        data: geojsonData
+                    });
+
+                    // Styled by railroad owner
+                    map.current.addLayer({
+                        id: 'rail-layer',
+                        type: 'line',
+                        source: 'us-rail-network',
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: {
+                            'line-color': [
+                                'match',
+                                ['get', 'owner'],
+                                'BNSF', '#f97316',  // Orange
+                                'UP', '#facc15',    // Yellow
+                                'CSX', '#3b82f6',   // Blue
+                                'NS', '#3b82f6',    // Blue
+                                'CN', '#ef4444',    // Red
+                                'CPKC', '#a855f7',  // Purple
+                                '#64748b'           // Gray default
+                            ],
+                            'line-width': [
+                                'match',
+                                ['get', 'type'],
+                                'mainline', 2.5,
+                                1.5  // branches
+                            ],
+                            'line-opacity': 0.75
+                        }
+                    });
+                })
+                .catch(() => {
+                    // Fallback to static RAIL_LINES data
+                    if (!map.current) return;
+
+                    map.current.addSource('rail-lines', {
+                        type: 'geojson',
+                        data: {
+                            type: 'FeatureCollection',
+                            features: RAIL_LINES.map(line => ({
+                                type: 'Feature',
+                                properties: { id: line.id },
+                                geometry: { type: 'LineString', coordinates: line.path.map(p => [p.lng, p.lat]) }
+                            }))
+                        }
+                    });
+
+                    map.current.addLayer({
+                        id: 'rail-layer',
+                        type: 'line',
+                        source: 'rail-lines',
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: {
+                            'line-color': '#f97316',
+                            'line-width': 2,
+                            'line-opacity': 0.6
+                        }
+                    });
+                });
+
             map.current?.addSource('corn-heat', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] }
             });
 
-            // Add Heatmap Layer - Green/Amber Theme for "Money"
             map.current?.addLayer({
                 id: 'corn-heat-layer',
                 type: 'heatmap',
                 source: 'corn-heat',
                 paint: {
-                    'heatmap-weight': [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'weight'],
-                        0, 0,
-                        10, 1
-                    ],
-                    'heatmap-intensity': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0, 1,
-                        9, 3
-                    ],
-                    // Green/Gold Theme
+                    'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 10, 1],
+                    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 9, 3],
                     'heatmap-color': [
                         'interpolate',
                         ['linear'],
                         ['heatmap-density'],
                         0, 'rgba(0,0,0,0)',
-                        0.2, 'rgba(20, 83, 45, 0.5)', // Dark Green
-                        0.4, 'rgba(22, 163, 74, 0.6)', // Green
-                        0.6, 'rgba(34, 197, 94, 0.7)', // Bright Green
-                        0.8, 'rgba(234, 179, 8, 0.8)', // Yellow/Gold
-                        1, 'rgba(255, 255, 255, 0.9)'  // White
+                        0.2, 'rgba(6, 182, 212, 0.3)',
+                        0.5, 'rgba(6, 182, 212, 0.6)',
+                        1, 'rgba(34, 211, 238, 0.9)'
                     ],
-                    'heatmap-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0, 2,
-                        9, 30
-                    ],
-                    'heatmap-opacity': 0.7
+                    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 2, 9, 20],
+                    'heatmap-opacity': 0.5
                 }
             });
 
-            // Add Circle Layer for individual points (Opportunity Zones)
             map.current?.addLayer({
                 id: 'corn-point-layer',
                 type: 'circle',
                 source: 'corn-heat',
                 minzoom: 4,
                 paint: {
-                    'circle-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        4, 4,
-                        10, 10
-                    ],
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 10, 6],
                     'circle-color': [
                         'case',
                         ['boolean', ['get', 'isOpportunity'], false],
-                        '#4ade80', // Bright Green for opportunity
-                        '#fbbf24'  // Amber otherwise
+                        '#22d3ee',
+                        '#64748b'
                     ],
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': [
-                        'case',
-                        ['boolean', ['get', 'isOpportunity'], false],
-                        2,
-                        1
-                    ],
+                    'circle-stroke-color': '#000',
+                    'circle-stroke-width': 1,
                     'circle-opacity': 0.9
                 }
             });
 
-            // Add State Glow Source
-            map.current?.addSource('state-glow', {
-                type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] }
-            });
-
-            // Add State Glow Layer (Large pulsing circles)
-            map.current?.addLayer({
-                id: 'state-glow-layer',
-                type: 'circle',
-                source: 'state-glow',
-                paint: {
-                    'circle-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        3, 40, // Large at low zoom
-                        6, 80
-                    ],
-                    'circle-color': '#22c55e', // Strong Green
-                    'circle-opacity': 0.3, // Semi-transparent
-                    'circle-blur': 0.8, // Very blurry for "glow" effect
-                    'circle-stroke-width': 0
-                }
-            });
-
-            // Add Transloader Source
             map.current?.addSource('transloaders', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] }
             });
-
-            // Add Transloader Layer (Purple Circles with Icon feel)
             map.current?.addLayer({
                 id: 'transloader-layer',
                 type: 'circle',
                 source: 'transloaders',
                 minzoom: 3,
                 paint: {
-                    'circle-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        3, 3,
-                        10, 8
-                    ],
-                    'circle-color': '#a855f7', // Purple
-                    'circle-stroke-color': '#ffffff',
-                    'circle-stroke-width': 1.5,
-                    'circle-opacity': 0.9
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 2, 10, 5],
+                    'circle-color': '#a855f7',
+                    'circle-opacity': 0.7
                 }
             });
 
-            // Click event for heatmap points
-            map.current?.on('click', 'corn-point-layer', (e) => {
-                if (e.features && e.features[0]) {
-                    const props = e.features[0].properties as unknown as HeatmapPoint;
-                    setSelectedItem(props);
-                }
-            });
 
-            // Click event for transloaders
-            map.current?.on('click', 'transloader-layer', (e) => {
-                if (e.features && e.features[0]) {
-                    const props = e.features[0].properties as any;
+            // Events
+            map.current?.on('click', 'state-fill', (e) => {
+                if (e.features && e.features.length > 0) {
+                    const feature = e.features[0];
+                    const stateName = feature.properties?.STATE_NAME;
+                    const stateCode = STATE_NAME_TO_CODE[stateName];
 
-                    // Safely parse arrays if they come back as strings from Mapbox
-                    let railroad = props.railroad;
-                    let commodities = props.commodities;
+                    if (stateCode) {
+                        // Interactive Zoom / Drill Down
+                        setZoomedState(prev => {
+                            if (prev === stateCode) return null;
+                            return stateCode;
+                        });
 
-                    try {
-                        if (typeof railroad === 'string') {
-                            railroad = JSON.parse(railroad);
+                        const knownCenter = STATE_CENTERS[stateCode];
+                        if (knownCenter) {
+                            map.current?.flyTo({ center: knownCenter, zoom: 6 });
                         }
-                        if (typeof commodities === 'string') {
-                            commodities = JSON.parse(commodities);
-                        }
-                    } catch (err) {
-                        console.warn('Failed to parse transloader props', err);
-                        // Fallback to wrapping in array if parse fails but it's a string
-                        if (typeof railroad === 'string') railroad = [railroad];
-                        if (typeof commodities === 'string') commodities = [commodities];
                     }
-
-                    setSelectedItem({
-                        ...props,
-                        railroad: Array.isArray(railroad) ? railroad : [],
-                        commodities: Array.isArray(commodities) ? commodities : [],
-                        type: 'transload'
-                    } as Transloader);
                 }
             });
 
-            // Change cursor on hover
-            const layers = ['corn-point-layer', 'transloader-layer'];
-            layers.forEach(layer => {
-                map.current?.on('mouseenter', layer, () => {
-                    if (map.current) map.current.getCanvas().style.cursor = 'pointer';
-                });
-                map.current?.on('mouseleave', layer, () => {
-                    if (map.current) map.current.getCanvas().style.cursor = '';
-                });
+            map.current?.on('click', 'corn-point-layer', (e) => {
+                e.originalEvent.stopPropagation();
+                if (e.features && e.features[0]) {
+                    setSelectedItem(e.features[0].properties as any);
+                }
             });
 
-            // Pulse Animation for Glow
-            let opacity = 0.3;
-            let direction = 1;
-            const animateGlow = () => {
-                if (!map.current?.getLayer('state-glow-layer')) return;
+            // Targeted Animation Loop
+            let t = 0;
+            const animate = () => {
+                t += 0.05;
+                const intensity = (Math.sin(t) + 1) / 2;
+                const breath = 0.3 + (intensity * 0.7); // Pulse between 0.3 and 1.0
 
-                opacity += 0.005 * direction;
-                if (opacity > 0.5) direction = -1;
-                if (opacity < 0.2) direction = 1;
-
-                map.current.setPaintProperty('state-glow-layer', 'circle-opacity', opacity);
-                requestAnimationFrame(animateGlow);
+                if (map.current?.getLayer('state-border-highlight')) {
+                    map.current.setPaintProperty('state-border-highlight', 'line-opacity', breath);
+                }
+                requestAnimationFrame(animate);
             };
-            animateGlow();
-
+            animate();
         });
     }, []);
-
-    // Update heatmap data
-    useEffect(() => {
-        if (!map.current || !styleLoaded) return;
-
-        const source = map.current.getSource('corn-heat') as mapboxgl.GeoJSONSource;
-        if (source) {
-            let features: any[] = [];
-
-            if (heatmapMode === 'buyers') {
-                features = buyers.map(b => ({
-                    type: 'Feature',
-                    properties: {
-                        weight: b.basis * 10, // Scale basis for weight
-                        isOpportunity: b.basis > 0.2 || b.netPrice && b.netPrice > 4.5, // Highlight high bids
-                        ...b
-                    },
-                    geometry: { type: 'Point', coordinates: [b.lng, b.lat] }
-                }));
-            } else {
-                // Use live heatmap data
-                features = heatmapData.map(p => ({
-                    type: 'Feature',
-                    properties: {
-                        weight: p.cornPrice, // Use price for weight
-                        ...p
-                    },
-                    geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
-                }));
-            }
-
-            source.setData({ type: 'FeatureCollection', features });
-        }
-    }, [heatmapData, buyers, heatmapMode, styleLoaded]);
-
-    // Update State Glow Data
-    useEffect(() => {
-        if (!map.current || !styleLoaded) return;
-        const source = map.current.getSource('state-glow') as mapboxgl.GeoJSONSource;
-
-        if (source && topStates.length > 0) {
-            const features = topStates
-                .map(stateCode => {
-                    const center = STATE_CENTERS[stateCode];
-                    if (!center) return null;
-                    return {
-                        type: 'Feature',
-                        properties: { state: stateCode },
-                        geometry: { type: 'Point', coordinates: center }
-                    };
-                })
-                .filter(f => f !== null) as any[];
-
-            source.setData({ type: 'FeatureCollection', features });
-        } else if (source) {
-            source.setData({ type: 'FeatureCollection', features: [] });
-        }
-    }, [topStates, styleLoaded]);
-
-    // Update Transloader Data
-    useEffect(() => {
-        if (!map.current || !styleLoaded) return;
-        const source = map.current.getSource('transloaders') as mapboxgl.GeoJSONSource;
-        if (source && transloaders) {
-            const features = transloaders.map(t => ({
-                type: 'Feature',
-                properties: t,
-                geometry: { type: 'Point', coordinates: [t.lng, t.lat] }
-            }));
-            source.setData({ type: 'FeatureCollection', features } as any);
-        }
-    }, [transloaders, styleLoaded]);
-
-    // Handle Hover Effect from Top 3 Card
-    useEffect(() => {
-        if (!map.current || !map.current.isStyleLoaded()) return;
-
-        if (hoveredRegionId) {
-            map.current.setPaintProperty('corn-point-layer', 'circle-radius', [
-                'case',
-                ['==', ['get', 'id'], hoveredRegionId],
-                20, // Enlarge hovered
-                ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 10] // Default
-            ]);
-            map.current.setPaintProperty('corn-point-layer', 'circle-stroke-width', [
-                'case',
-                ['==', ['get', 'id'], hoveredRegionId],
-                4,
-                ['case', ['boolean', ['get', 'isOpportunity'], false], 2, 1]
-            ]);
-            // Make it pulse color
-            map.current.setPaintProperty('corn-point-layer', 'circle-color', [
-                'case',
-                ['==', ['get', 'id'], hoveredRegionId],
-                '#22c55e', // Strong Green
-                ['case', ['boolean', ['get', 'isOpportunity'], false], '#4ade80', '#fbbf24']
-            ]);
-        } else {
-            // Reset
-            map.current.setPaintProperty('corn-point-layer', 'circle-radius', [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                4, 4,
-                10, 10
-            ]);
-            map.current.setPaintProperty('corn-point-layer', 'circle-stroke-width', [
-                'case',
-                ['boolean', ['get', 'isOpportunity'], false],
-                2,
-                1
-            ]);
-            map.current.setPaintProperty('corn-point-layer', 'circle-color', [
-                'case',
-                ['boolean', ['get', 'isOpportunity'], false],
-                '#4ade80',
-                '#fbbf24'
-            ]);
-        }
-    }, [hoveredRegionId]);
 
     // Toggle layers visibility
     useEffect(() => {
@@ -441,12 +341,155 @@ export const CornMap: React.FC<CornMapProps> = ({
         setVisibility('corn-point-layer', showHeatmap);
         setVisibility('rail-layer', showRail);
         setVisibility('transloader-layer', !!showTransloaders);
-        setVisibility('state-glow-layer', true); // Always show glow if data present
+        // state-glow-layer logic if needed, or always valid
+        if (map.current.getLayer('state-border')) {
+            map.current.setLayoutProperty('state-border', 'visibility', 'visible');
+        }
 
     }, [showHeatmap, showRail, showTransloaders]);
 
+    // Update Highlight Layer based on Top States
+    useEffect(() => {
+        if (!map.current || !styleLoaded) return;
+
+        if (topStates.length > 0) {
+            // Convert codes to full names for Mapbox filter
+            const topStateNames = topStates
+                .map(code => Object.keys(STATE_NAME_TO_CODE).find(key => STATE_NAME_TO_CODE[key] === code))
+                .filter(Boolean);
+
+            if (map.current.getLayer('state-border-highlight')) {
+                map.current.setFilter('state-border-highlight', ['in', 'STATE_NAME', ...topStateNames]);
+            }
+        } else {
+            if (map.current.getLayer('state-border-highlight')) {
+                map.current.setFilter('state-border-highlight', ['in', 'STATE_NAME', '']); // Hide all
+            }
+        }
+
+    }, [topStates, styleLoaded]);
+
+    // Update State Colors Effect (Fill Layer)
+    useEffect(() => {
+        if (!map.current || !styleLoaded) return;
+
+        const expression: any[] = ['match', ['get', 'STATE_NAME']];
+        const opacityExpression: any[] = ['match', ['get', 'STATE_NAME']];
+
+        Object.entries(stateMetrics).forEach(([code, data]) => {
+            const name = Object.keys(STATE_NAME_TO_CODE).find(key => STATE_NAME_TO_CODE[key] === code);
+            if (name) {
+                if (data.isHot) {
+                    expression.push(name, '#06b6d4'); // Cyan for data presence
+                    opacityExpression.push(name, 0.4);
+                } else {
+                    expression.push(name, '#1e293b');
+                    opacityExpression.push(name, 0.1);
+                }
+            }
+        });
+
+        expression.push('#000000');
+        opacityExpression.push(0);
+
+        if (map.current.getLayer('state-fill')) {
+            map.current.setPaintProperty('state-fill', 'fill-color', expression as any);
+            map.current.setPaintProperty('state-fill', 'fill-opacity', opacityExpression as any);
+        }
+
+    }, [stateMetrics, styleLoaded]);
+
+    // Update heatmap data
+    useEffect(() => {
+        if (!map.current || !styleLoaded) return;
+        const source = map.current.getSource('corn-heat') as mapboxgl.GeoJSONSource;
+        if (source) {
+            let features: any[] = [];
+
+            if (heatmapMode === 'buyers') {
+                features = buyers.map(b => ({
+                    type: 'Feature',
+                    properties: {
+                        weight: b.basis * 10,
+                        isOpportunity: b.basis > 0.2 || (b.netPrice || 0) > 4.5,
+                        ...b
+                    },
+                    geometry: { type: 'Point', coordinates: [b.lng, b.lat] }
+                }));
+            } else {
+                features = heatmapData.map(p => ({
+                    type: 'Feature',
+                    properties: {
+                        weight: p.cornPrice,
+                        ...p
+                    },
+                    geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
+                }));
+            }
+            source.setData({ type: 'FeatureCollection', features });
+        }
+    }, [heatmapData, buyers, heatmapMode, styleLoaded]);
+
+    // Update Transloaders
+    useEffect(() => {
+        if (!map.current || !styleLoaded) return;
+        const source = map.current.getSource('transloaders') as mapboxgl.GeoJSONSource;
+        if (source && transloaders) {
+            const features = transloaders.map(t => ({
+                type: 'Feature',
+                properties: t,
+                geometry: { type: 'Point', coordinates: [t.lng, t.lat] }
+            }));
+            source.setData({ type: 'FeatureCollection', features } as any);
+        }
+    }, [transloaders, styleLoaded]);
+
+    // Zoom Handling
+    useEffect(() => {
+        if (!map.current || !zoomedState) return;
+        const center = STATE_CENTERS[zoomedState];
+        if (center) {
+            map.current.flyTo({ center, zoom: 6, essential: true });
+        }
+    }, [zoomedState]);
+
+    // Hover Handling
+    useEffect(() => {
+        if (!map.current || !map.current.isStyleLoaded()) return;
+
+        if (hoveredRegionId) {
+            map.current.setPaintProperty('corn-point-layer', 'circle-radius', [
+                'case',
+                ['==', ['get', 'id'], hoveredRegionId],
+                20,
+                ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 10]
+            ]);
+            map.current.setPaintProperty('corn-point-layer', 'circle-color', [
+                'case',
+                ['==', ['get', 'id'], hoveredRegionId],
+                '#22c55e',
+                ['case', ['boolean', ['get', 'isOpportunity'], false], '#22d3ee', '#64748b']
+            ]);
+        } else {
+            map.current.setPaintProperty('corn-point-layer', 'circle-radius', [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                4, 4,
+                10, 10
+            ]);
+            map.current.setPaintProperty('corn-point-layer', 'circle-color', [
+                'case',
+                ['boolean', ['get', 'isOpportunity'], false],
+                '#22d3ee',
+                '#64748b'
+            ]);
+        }
+    }, [hoveredRegionId]);
+
+
     return (
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full bg-black">
             <div ref={mapContainer} className="w-full h-full" />
 
             {showBuyers && map.current && (
