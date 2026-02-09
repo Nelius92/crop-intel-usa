@@ -31,8 +31,11 @@ export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {
         // Calculate Cash Price: Futures + Basis
         const newCashPrice = currentFutures + basis;
 
-        // Calculate Freight using rail service
-        const freightInfo = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.name);
+        // Calculate Freight FROM Campbell, MN TO this buyer
+        const freightInfo = await calculateFreight(
+            { lat: buyer.lat, lng: buyer.lng, state: buyer.state, city: buyer.city },
+            buyer.name
+        );
         const newFreightCost = freightInfo.ratePerBushel;
 
         // Calculate Net Price: Cash - Freight (what you receive)

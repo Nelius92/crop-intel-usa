@@ -193,43 +193,64 @@ export interface FreightQuote {
     isRealTime?: boolean;
 }
 
-export const calculateFreight = async (_origin: { lat: number, lng: number }, destinationName: string): Promise<{ ratePerBushel: number, distance: number }> => {
-    // Simulate async calculation
+// Calculate freight FROM Campbell, MN TO buyer location
+// Uses buyer's state to determine proper BNSF rate
+export const calculateFreight = async (
+    buyerLocation: { lat: number, lng: number, state?: string, city?: string },
+    destinationName: string
+): Promise<{ ratePerBushel: number, distance: number, origin: string }> => {
     return new Promise((resolve) => {
         setTimeout(() => {
-            // Parse destination from name/context (Simplified for now)
-            // In a real app, we'd have structured destination data
-            let state = "";
-            let city = "";
+            let state = buyerLocation.state || "";
+            let city = buyerLocation.city || "";
 
-            if (destinationName.includes("Modesto") || destinationName.includes("Penny Newman") || destinationName.includes("Stanislaus")) {
-                state = "CA";
-                city = "Modesto";
-            } else if (destinationName.includes("Yakima") || destinationName.includes("Pomeroy") || destinationName.includes("Northwest")) {
-                state = "WA";
-                city = "Yakima";
-            } else if (destinationName.includes("Hereford") || destinationName.includes("Texas")) {
-                state = "TX";
-                city = "Hereford";
-            } else if (destinationName.includes("Kansas")) {
-                state = "KS";
-                city = "Garden City";
-            } else {
-                // Default fallback for local/unknown
-                resolve({ ratePerBushel: 0.15, distance: 50 });
-                return;
+            // If state not provided, parse from destination name
+            if (!state) {
+                if (destinationName.includes("Modesto") || destinationName.includes("Penny Newman") ||
+                    destinationName.includes("Stanislaus") || destinationName.includes("Gilbert") ||
+                    destinationName.includes("Tulare") || destinationName.includes("Fresno")) {
+                    state = "CA";
+                    city = "Modesto";
+                } else if (destinationName.includes("Yakima") || destinationName.includes("Pasco") ||
+                    destinationName.includes("Walla") || destinationName.includes("Northwest")) {
+                    state = "WA";
+                    city = "Yakima";
+                } else if (destinationName.includes("Hereford") || destinationName.includes("Texas") ||
+                    destinationName.includes("Amarillo")) {
+                    state = "TX";
+                    city = "Hereford";
+                } else if (destinationName.includes("Kansas")) {
+                    state = "KS";
+                    city = "Garden City";
+                } else if (destinationName.includes("Jerome") || destinationName.includes("Idaho")) {
+                    state = "ID";
+                    city = "Jerome";
+                } else if (destinationName.includes("Iowa") || destinationName.includes("Des Moines") ||
+                    destinationName.includes("Cedar Rapids")) {
+                    state = "IA";
+                    city = "Des Moines";
+                } else if (destinationName.includes("Nebraska") || destinationName.includes("Albion") ||
+                    destinationName.includes("Aurora")) {
+                    state = "NE";
+                    city = "Central City";
+                } else {
+                    // Default fallback for unknown/local - minimal freight
+                    resolve({
+                        ratePerBushel: 0.15,
+                        distance: 50,
+                        origin: 'Campbell, MN'
+                    });
+                    return;
+                }
             }
 
-            // Use BNSF Rate Engine
+            // Use BNSF Rate Engine FROM Campbell, MN
             const bnsfRate = bnsfService.calculateRate(state, city);
-
-            // Estimate distance (just for display)
-            // This is secondary to the Tariff Rate which is the "Truth"
-            const distance = state === "CA" ? 1800 : (state === "WA" ? 1600 : (state === "TX" ? 900 : 400));
 
             resolve({
                 ratePerBushel: bnsfRate.ratePerBushel,
-                distance: distance
+                distance: bnsfRate.distanceMiles,
+                origin: bnsfRate.origin
             });
         }, 100);
     });
