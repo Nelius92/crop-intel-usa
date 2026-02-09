@@ -91,10 +91,10 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
     return (
         <div className="w-full h-full flex flex-col bg-black relative overflow-hidden">
             {/* Header - Static Sticky Bar */}
-            <div className="flex-shrink-0 pt-20 px-4 pb-2 sm:pb-4 bg-black/80 backdrop-blur-sm z-20 border-b border-white/5">
-                <div className="flex flex-row justify-between items-center gap-4 bg-zinc-900/90 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-white/10 shadow-xl">
+            <div className="flex-shrink-0 pt-16 sm:pt-20 px-4 pb-2 sm:pb-4 bg-black/80 backdrop-blur-sm z-20 border-b border-white/5">
+                <div className="flex flex-row justify-between items-center gap-3 sm:gap-4 bg-zinc-900/90 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-white/10 shadow-xl">
                     <div>
-                        <h2 className="text-xl sm:text-3xl font-bold text-white tracking-tight">
+                        <h2 className="text-lg sm:text-2xl md:text-3xl font-bold text-white tracking-tight">
                             {selectedCrop.split(' ')[0]} <span className="text-orange-500">Intel</span>
                         </h2>
                         <div className="flex items-center gap-2 text-zinc-400 text-xs sm:text-sm flex-wrap">
@@ -102,7 +102,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                             {oracle && (
                                 <>
                                     <span className="hidden sm:inline text-zinc-600">•</span>
-                                    <span className="text-corn-accent font-mono">
+                                    <span className="text-corn-accent font-mono text-xs sm:text-sm">
                                         {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
                                     </span>
                                 </>
@@ -112,7 +112,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
 
                     {/* Hankinson Benchmark Badge */}
                     {oracle && (
-                        <div className="hidden sm:flex flex-col items-end bg-emerald-900/30 border border-emerald-500/30 rounded-lg px-3 py-1.5">
+                        <div className="hidden md:flex flex-col items-end bg-emerald-900/30 border border-emerald-500/30 rounded-lg px-3 py-1.5">
                             <span className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Hankinson Benchmark</span>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-emerald-300 font-mono text-sm">
@@ -128,7 +128,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                     <button
                         onClick={fetchBuyers}
                         disabled={loading}
-                        className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                        className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
                     >
                         <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
                     </button>
@@ -136,7 +136,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
 
                 {/* Mobile Hankinson Banner */}
                 {oracle && (
-                    <div className="sm:hidden mt-2 bg-emerald-900/30 border border-emerald-500/30 rounded-lg px-3 py-2 flex justify-between items-center">
+                    <div className="md:hidden mt-2 bg-emerald-900/30 border border-emerald-500/30 rounded-lg px-3 py-2 flex justify-between items-center">
                         <span className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Hankinson</span>
                         <div className="flex items-center gap-2">
                             <span className="text-emerald-300 font-mono text-xs">

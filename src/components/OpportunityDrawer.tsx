@@ -22,20 +22,20 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                     animate={{ y: 0 }}
                     exit={{ y: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none px-4 pb-4"
+                    className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none px-2 sm:px-4 pb-2 sm:pb-4"
                 >
-                    <div className="w-full max-w-lg bg-[#120202]/90 backdrop-blur-xl border border-white/10 shadow-neon-red rounded-3xl overflow-hidden pointer-events-auto ring-1 ring-white/5">
+                    <div className="w-full max-w-lg bg-[#120202]/90 backdrop-blur-xl border border-white/10 shadow-neon-red rounded-2xl sm:rounded-3xl overflow-hidden pointer-events-auto ring-1 ring-white/5 max-h-[85vh] flex flex-col">
 
                         {/* Header Section */}
-                        <div className="relative p-6 pb-2">
+                        <div className="relative p-4 sm:p-6 pb-2">
                             <button
                                 onClick={onClose}
-                                className="absolute top-4 right-4 p-2 bg-zinc-800 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-white transition-colors"
+                                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-2 bg-zinc-800 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                             >
                                 <X size={18} />
                             </button>
 
-                            <h2 className="text-2xl font-bold text-white mb-1">
+                            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 pr-12">
                                 {isBuyer(item) || isTransloader(item) ? item.name : 'Market Opportunity'}
                             </h2>
                             <p className="text-zinc-400 text-sm">
@@ -44,14 +44,14 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                         </div>
 
                         {/* Content Section */}
-                        <div className="p-6 pt-4 space-y-6">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pt-4 space-y-4 sm:space-y-6 custom-scrollbar">
 
                             {/* Live Market Data Section */}
                             <div>
                                 <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">
                                     {isTransloader(item) ? 'Facility Details' : 'Live Market Data'}
                                 </h3>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                     {isBuyer(item) ? (
                                         <>
                                             <DataCard label="Cash Bid" value={`$${item.cashPrice.toFixed(2)}`} highlight />
@@ -90,7 +90,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                             {isBuyer(item) && (
                                 <>
                                     <div className="h-px bg-zinc-800" />
-                                    <div className="flex justify-between gap-4">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                                         <ActionButton
                                             icon={<Navigation size={20} />}
                                             label="Directions"
@@ -149,9 +149,9 @@ const ActionButton = ({ icon, label, active = false, onClick, disabled = false }
     <button
         onClick={onClick}
         disabled={disabled}
-        className={`flex flex-col items-center gap-1 min-w-[60px] group ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
+        className={`flex flex-col items-center gap-1.5 sm:gap-1 min-w-[70px] sm:min-w-[60px] group ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
     >
-        <div className={`p-3 rounded-full transition-all duration-300 ${active
+        <div className={`p-3 sm:p-3 rounded-full transition-all duration-300 ${active
             ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)] scale-110'
             : disabled
                 ? 'bg-zinc-800 text-zinc-600'
@@ -159,7 +159,7 @@ const ActionButton = ({ icon, label, active = false, onClick, disabled = false }
             }`}>
             {icon}
         </div>
-        <span className={`text-[10px] font-medium tracking-wide ${active ? 'text-cyan-400' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+        <span className={`text-[10px] font-medium tracking-wide text-center ${active ? 'text-cyan-400' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
             {label}
         </span>
     </button>

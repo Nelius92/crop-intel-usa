@@ -8,7 +8,7 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) => {
     return (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-corn-surface/90 backdrop-blur-md border border-slate-700 rounded-full px-6 py-3 shadow-xl z-40 flex items-center gap-8">
+        <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 bg-corn-surface/90 backdrop-blur-md border border-slate-700 rounded-full px-4 sm:px-6 py-2.5 sm:py-3 shadow-xl z-40 flex items-center gap-4 sm:gap-8" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
             <NavButton
                 icon={<Map size={20} />}
                 label="Heat Map"
@@ -34,9 +34,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
 const NavButton = ({ icon, label, active, onClick }: any) => (
     <button
         onClick={onClick}
-        className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-corn-accent' : 'text-slate-400 hover:text-slate-200'}`}
+        className={`flex flex-col items-center gap-1 transition-colors p-2 min-w-[60px] ${active ? 'text-corn-accent' : 'text-slate-400 hover:text-slate-200'}`}
     >
         {icon}
-        <span className="text-[10px] font-medium uppercase tracking-wider">{label}</span>
+        <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider">{label}</span>
     </button>
 );

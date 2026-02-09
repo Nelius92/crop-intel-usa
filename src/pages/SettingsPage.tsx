@@ -23,23 +23,23 @@ export const SettingsPage: React.FC = () => {
     };
 
     return (
-        <div className="w-full h-full bg-corn-base p-8 pt-24 overflow-y-auto">
-            <div className="max-w-md mx-auto pb-20">
-                <h2 className="text-3xl font-bold text-white mb-8">Settings</h2>
+        <div className="w-full h-full bg-corn-base p-4 sm:p-8 pt-20 sm:pt-24 overflow-y-auto pb-32">
+            <div className="max-w-md mx-auto">
+                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6 sm:mb-8">Settings</h2>
 
-                <div className="space-y-6">
-                    <div className="bg-corn-surface p-6 rounded-xl border border-slate-700">
+                <div className="space-y-4 sm:space-y-6">
+                    <div className="bg-corn-surface p-4 sm:p-6 rounded-xl border border-slate-700">
                         <label className="block text-sm font-medium text-slate-400 mb-2">Mapbox API Key</label>
                         <input
                             type="text"
                             value="MAPBOX_TOKEN_REMOVED"
                             disabled
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-300 font-mono text-sm opacity-50 cursor-not-allowed"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-300 font-mono text-sm opacity-50 cursor-not-allowed"
                         />
                         <p className="text-xs text-slate-500 mt-2">API key is managed by system administrator.</p>
                     </div>
 
-                    <div className="bg-corn-surface p-6 rounded-xl border border-slate-700">
+                    <div className="bg-corn-surface p-4 sm:p-6 rounded-xl border border-slate-700">
                         <h3 className="text-lg font-semibold text-white mb-4">Farm Origin</h3>
                         <p className="text-sm text-slate-400 mb-4">Set your farm location to calculate accurate freight costs.</p>
 
@@ -51,10 +51,10 @@ export const SettingsPage: React.FC = () => {
                                     value={origin.city}
                                     onChange={(e) => setOrigin({ ...origin, city: e.target.value })}
                                     placeholder="e.g. Campbell"
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-corn-accent"
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-corn-accent"
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-400 mb-1">State</label>
                                     <input
@@ -62,7 +62,7 @@ export const SettingsPage: React.FC = () => {
                                         value={origin.state}
                                         onChange={(e) => setOrigin({ ...origin, state: e.target.value })}
                                         placeholder="e.g. MN"
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-corn-accent"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-corn-accent"
                                     />
                                 </div>
                                 <div>
@@ -72,14 +72,14 @@ export const SettingsPage: React.FC = () => {
                                         value={origin.zip}
                                         onChange={(e) => setOrigin({ ...origin, zip: e.target.value })}
                                         placeholder="e.g. 56522"
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-corn-accent"
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-corn-accent"
                                     />
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-corn-surface p-6 rounded-xl border border-slate-700">
+                    <div className="bg-corn-surface p-4 sm:p-6 rounded-xl border border-slate-700">
                         <h3 className="text-lg font-semibold text-white mb-4">Preferences</h3>
 
                         <div className="flex items-center justify-between mb-4">
@@ -97,15 +97,15 @@ export const SettingsPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                         <button
                             onClick={handleSave}
-                            className="flex-1 bg-corn-accent hover:bg-cyan-400 text-corn-base font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                            className="flex-1 bg-corn-accent hover:bg-cyan-400 text-corn-base font-bold py-3.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors min-h-[50px]"
                         >
                             <Save size={18} />
                             Save Changes
                         </button>
-                        <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                        <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors min-h-[50px]">
                             <RotateCcw size={18} />
                             Reset Data
                         </button>

@@ -117,8 +117,8 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
             />
 
             {/* Overlay Elements */}
-            <div className="absolute top-20 left-4 sm:left-6 pointer-events-none z-10">
-                <h2 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-lg">
+            <div className="absolute top-16 sm:top-20 left-4 sm:left-6 pointer-events-none z-10">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
                     National <span className="text-green-400">Price Heatmap</span>
                 </h2>
                 <p className="text-slate-300 text-xs sm:text-sm drop-shadow-md max-w-md mt-1">
@@ -143,13 +143,13 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
             <button
                 onClick={fetchData}
                 disabled={loading}
-                className="absolute top-20 right-4 sm:right-96 mr-0 sm:mr-4 p-2.5 bg-[#120202]/60 backdrop-blur-xl rounded-full border border-white/10 text-corn-accent shadow-glass hover:shadow-glow hover:bg-corn-accent/10 transition-all active:scale-95 disabled:opacity-50 pointer-events-auto z-20"
+                className="absolute top-16 sm:top-20 right-4 sm:right-6 lg:right-96 lg:mr-4 p-2.5 bg-[#120202]/60 backdrop-blur-xl rounded-full border border-white/10 text-corn-accent shadow-glass hover:shadow-glow hover:bg-corn-accent/10 transition-all active:scale-95 disabled:opacity-50 pointer-events-auto z-20"
                 title="Refresh Live Data"
             >
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
             </button>
 
-            <div className="absolute bottom-24 sm:top-20 right-4 sm:right-6 pointer-events-auto z-10 w-80">
+            <div className="absolute bottom-28 left-4 right-4 sm:bottom-auto sm:top-20 sm:right-6 sm:left-auto pointer-events-auto z-10 w-auto sm:w-80 max-h-[40vh] sm:max-h-[calc(100vh-120px)]">
                 <MarketIntelPanel buyers={buyers} />
             </div>
         </div>

@@ -24,19 +24,19 @@ export const CropSelector: React.FC<CropSelectorProps> = ({ selectedCrop, onSele
         <div className="relative z-50">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all group"
+                className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/10 px-3 py-2 sm:py-1.5 rounded-lg hover:bg-white/5 transition-all group min-h-[44px] sm:min-h-0"
             >
                 <span className={`${activeCrop.color} group-hover:scale-110 transition-transform`}>
                     {activeCrop.icon}
                 </span>
-                <span className="text-sm font-medium text-white">{selectedCrop}</span>
+                <span className="text-sm font-medium text-white whitespace-nowrap">{selectedCrop}</span>
                 <ChevronDown size={14} className={`text-zinc-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isOpen && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col py-1">
+                    <div className="absolute top-full right-0 mt-2 w-56 sm:w-48 bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col py-1">
                         {CROPS.map((crop) => (
                             <button
                                 key={crop.type}
@@ -44,9 +44,9 @@ export const CropSelector: React.FC<CropSelectorProps> = ({ selectedCrop, onSele
                                     onSelect(crop.type);
                                     setIsOpen(false);
                                 }}
-                                className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${selectedCrop === crop.type
-                                        ? 'bg-white/10 text-white'
-                                        : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+                                className={`flex items-center gap-3 px-4 py-3.5 sm:py-3 text-sm transition-colors min-h-[50px] sm:min-h-0 ${selectedCrop === crop.type
+                                    ? 'bg-white/10 text-white'
+                                    : 'text-zinc-400 hover:bg-white/5 hover:text-white'
                                     }`}
                             >
                                 <span className={crop.color}>{crop.icon}</span>
