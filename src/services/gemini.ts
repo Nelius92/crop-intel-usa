@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Buyer, HeatmapPoint, MarketOracle } from '../types';
+import { Buyer, HeatmapPoint, MarketOracle, CropType } from '../types';
 import { FALLBACK_HEATMAP_DATA, FALLBACK_BUYERS_DATA } from './fallbackData';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -34,24 +34,26 @@ export class GeminiService {
         });
     }
 
-    async getLiveHeatmapData(): Promise<HeatmapPoint[]> {
+    async getLiveHeatmapData(crop: CropType = 'Yellow Corn'): Promise<HeatmapPoint[]> {
         // Add timestamp to prompt to ensure fresh generation
         const timestamp = new Date().toISOString();
 
         if (!API_KEY) {
             console.warn("Using fallback heatmap data (No API Key)");
-            return this.perturbData(FALLBACK_HEATMAP_DATA);
+            // Only use fallback for Corn, otherwise we need to generate or return empty
+            if (crop === 'Yellow Corn') return this.perturbData(FALLBACK_HEATMAP_DATA);
+            return []; // No fallback for other crops yet
         }
 
         const prompt = `
-            You are a real-time corn market data feed. Current time: ${timestamp}.
-            Search for the absolute latest live corn cash prices and basis levels across key US agricultural regions.
+            You are a real-time ${crop} market data feed. Current time: ${timestamp}.
+            Search for the absolute latest live ${crop} cash prices and basis levels across key US agricultural regions.
             
             Return a JSON array of 15-20 data points.
             Each object must have:
             - "lat": number
             - "lng": number
-            - "cornPrice": number (price in USD)
+            - "cornPrice": number (price in USD - functionally "cropPrice")
             - "basis": number
             - "change24h": number
             - "regionName": string
@@ -86,16 +88,26 @@ export class GeminiService {
         }
     }
 
-    async getLiveBuyerData(): Promise<Buyer[]> {
+    async getLiveBuyerData(crop: CropType = 'Yellow Corn'): Promise<Buyer[]> {
         if (!API_KEY) {
             console.warn("Using fallback buyer data (No API Key)");
-            return FALLBACK_BUYERS_DATA;
+            if (crop === 'Yellow Corn') return FALLBACK_BUYERS_DATA;
+            return [];
         }
 
+        const buyerContext = {
+            'Yellow Corn': 'Ethanol plants, Feedlots, Processors, River Terminals',
+            'White Corn': 'Masa Flour Mills (TX, CA), Food Processors',
+            'Soybeans': 'Crush Plants (ADM, Bunge), Export Terminals',
+            'Wheat': 'Flour Mills, Export Terminals',
+            'Sunflowers': 'Crush Plants (ND, SD), Bird Food Processors'
+        };
+
+        const targetBuyers = buyerContext[crop] || 'Agricultural Buyers';
+
         const prompt = `
-            You are a real-time corn buyer intelligence feed.
-            Search for current bids and basis from major corn buyers in the USA (Ethanol plants, Feedlots, Processors, River Terminals).
-            Examples: POET Biorefining, ADM, Cargill, Valero, local feedlots in TX/KS/NE.
+            You are a real-time ${crop} buyer intelligence feed.
+            Search for current bids and basis from major ${crop} buyers in the USA (${targetBuyers}).
             
             Return a JSON array of 10-15 specific buyer locations.
             Each object must have:
@@ -113,6 +125,7 @@ export class GeminiService {
             - "contactName": string (Simulated contact person name)
             - "contactPhone": string (Simulated phone number, e.g. (555) 123-4567)
             - "contactEmail": string (Simulated email address)
+            - "website": string (Official website URL starting with https://)
             
             Output ONLY valid JSON. No markdown formatting.
         `;
@@ -140,7 +153,7 @@ export class GeminiService {
         }
     }
 
-    async getMarketIntel(buyers: Buyer[]): Promise<string> {
+    async getMarketIntel(buyers: Buyer[], crop: CropType = 'Yellow Corn'): Promise<string> {
         const FALLBACK_INTEL = `**Corn Markets: Cash Bids Firm on Export Hopes**
 
 Basis levels across the Midwest are showing resilience this week, driven by steady demand from ethanol processors and a slight uptick in export interest. Eastern Corn Belt terminals are bidding aggressively to secure bushels, while the Western Corn Belt remains mixed due to variable logistics.
@@ -153,10 +166,10 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             const summary = buyers.map(b => `${b.name} (${b.state}): Basis ${b.basis}, Type: ${b.type}`).join('\n');
 
             const prompt = `
-                Analyze these current corn buyer bids:
+                Analyze these current ${crop} buyer bids:
                 ${summary}
                 
-                Generate a "Daily Corn Market Update" similar to a Barchart or USDA summary.
+                Generate a "Daily ${crop} Market Update" similar to a Barchart or USDA summary.
                 It should be a cohesive paragraph or two, not just bullet points.
                 
                 Include:
@@ -220,38 +233,43 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         }
     }
 
-    async getMarketOracle(): Promise<MarketOracle> {
+    async getMarketOracle(crop: CropType = 'Yellow Corn'): Promise<MarketOracle> {
         // Default Fallbacks (User Provided Truths from Guardian Hankinson)
         const FALLBACK_ORACLE: MarketOracle = {
             futuresPrice: 4.45,
             contractMonth: "Mar '26",
             hankinsonBasis: -0.47,
-            centralRegionBasis: -0.60, // Estimated from screenshot context
+            centralRegionBasis: -0.65, // Updated for 2026 realism
             lastUpdated: new Date().toISOString()
         };
 
         if (!API_KEY) return FALLBACK_ORACLE;
 
+        const date = new Date();
+        const year = date.getFullYear();
+        // Simple logic to guess next relevant contract month
+        const contractMonthQuery = crop === 'Soybeans' ? `Nov '${year}` : `Mar '${year + 1}`;
+
         const prompt = `
-            You are the CornIntel Market Oracle.
-            Your ONLY job is to find the current "Global Truths" for the corn market.
+            You are the CornIntel Market Oracle (covering all crops).
+            Your ONLY job is to find the current "Global Truths" for the ${crop} market.
             
             Current Date: December 2025.
             
             1. Search Tasks:
-            - Find the latest CME Corn Futures price for the **Mar '26** contract (Reference: ~$4.45).
-            - Find the current basis bid for "**Guardian Hankinson**" (formerly Hankinson Renewable Energy).
-            - Target Delivery: Dec 2025.
+            - Find the latest CME ${crop} Futures price for the **${contractMonthQuery}** contract.
+            - Find the current basis bid for a major benchmark buyer for ${crop}.
+            - Target Delivery: Spot / Dec 2025.
             
             2. Output Format:
             Return a JSON object with:
-            - "futuresPrice": number (e.g. 4.45)
-            - "contractMonth": string (e.g. "Mar '26")
-            - "hankinsonBasis": number (e.g. -0.47)
-            - "centralRegionBasis": number (e.g. -0.60)
+            - "futuresPrice": number
+            - "contractMonth": string
+            - "hankinsonBasis": number (Use a relevant benchmark basis)
+            - "centralRegionBasis": number
             
-            If you cannot find an exact number, use these SAFE DEFAULTS:
-            Futures: 4.45, Hankinson: -0.47, Central: -0.60.
+            If you cannot find an exact number, use these SAFE DEFAULTS for ${crop}:
+            Futures: 4.45, Hankinson: -0.47, Central: -0.60 (Adjust for crop price ~ $10 for beans).
             
             Output ONLY valid JSON.
         `;
@@ -273,7 +291,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         }
     }
 
-    async enrichBuyersWithMarketData(buyers: Buyer[], oracle: MarketOracle): Promise<Buyer[]> {
+    async enrichBuyersWithMarketData(buyers: Buyer[], oracle: MarketOracle, crop: CropType = 'Yellow Corn'): Promise<Buyer[]> {
         if (!API_KEY) return buyers;
 
         // Ensure Guardian Hankinson is in the list
@@ -326,22 +344,20 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
 
         const prompt = `
             You are CornIntel Pricing Engine.
-            Use these GLOBAL TRUTHS to generate buyer bids:
+            Use these GLOBAL TRUTHS to generate buyer bids for ${crop}:
             - Futures Price: $${oracle.futuresPrice} (${oracle.contractMonth})
             - Central Region Baseline Basis: ${oracle.centralRegionBasis}
             
             Task:
             Generate realistic basis bids for the provided buyers relative to these truths.
             
-            CRITICAL - SCOUT FOR BEST BIDS (MUST BEAT HANKINSON):
-            1. **West Coast Rail Markets** (CA, WA, AZ, ID): HIGHEST PREMIUMS due to freight (e.g., +1.00 to +1.40).
-            2. **East Coast/Southeast** (GA, NC, DE): Strong premiums for poultry/hogs (e.g., +0.50 to +0.90).
-            3. **Texas/Kansas Feedlots** (Amarillo, Hereford, Garden City): Strong Premium (e.g., +0.50 to +0.90).
-            4. **Processing/Ethanol** (Cedar Rapids, Decatur, Blair): Strong basis (e.g., -0.10 to +0.20).
-            5. **River Terminals** (St. Louis, Memphis): Competitive (e.g., -0.20 to +0.10).
-            6. **Remote/Country Elevators**: Weaker basis (e.g., -0.70 to -0.40).
+            CRITICAL - SCOUT FOR BEST BIDS (MUST BEAT BENCHMARK):
+            1. **West Coast Rail Markets** (CA, WA, AZ, ID): HIGHEST PREMIUMS due to freight.
+            2. **East Coast/Southeast** (GA, NC, DE): Strong premiums.
+            3. **Processing/Crush** (Local Plants): Strong basis.
             
             Ensure that the top rail destination markets (CA, WA, GA, TX) have the HIGHEST basis.
+            For ${crop}, prioritize buyers relevant to that crop.
             
             Buyers:
             ${JSON.stringify(buyerList)}
@@ -399,9 +415,9 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
                 const isSoutheast = ['GA', 'NC', 'SC', 'AL', 'AR', 'VA', 'DE'].includes(buyer.state);
 
                 if (isWestCoast) {
-                    fallbackBasis = 1.25; // High rail freight premium
+                    fallbackBasis = 0.85; // Realistic rail freight premium for delivered corn
                 } else if (isSoutheast) {
-                    fallbackBasis = 0.75; // Poultry market premium
+                    fallbackBasis = 0.45; // Poultry market premium
                 } else if (isTexas || isKansas) {
                     fallbackBasis = 0.60; // Premium for feedlots
                 } else if (isNebraska) {
