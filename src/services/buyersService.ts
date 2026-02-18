@@ -1,4 +1,4 @@
-import { Buyer } from '../types';
+import { Buyer, PriceProvenance, getOverallConfidence } from '../types';
 // import { googleMapsService } from './googleMapsService';
 
 // This service fetches and enriches buyer data with live market prices
@@ -19,24 +19,30 @@ export const fetchRealBuyersFromGoogle = async (selectedCrop: string = 'Yellow C
     const marketData = marketDataService.getCropMarketData(selectedCrop);
     const currentFutures = marketData.futuresPrice;
 
+    // Trust Layer: get provenance for futures price
+    const futuresSource = marketDataService.getFuturesSource(selectedCrop);
+
     // USDA regional adjustments (currently only for Corn, defaults to 0 others)
     const regionalAdjustments = await usdaMarketService.getRegionalAdjustments();
 
-    // Get Hankinson benchmark for comparison (Corn-based, need to verify if user wants crop-specific)
-    // For now, we compare against the crop-specific market data's "Hankinson" equivalent
+    // Get Hankinson benchmark for comparison
     const hankinsonBenchmark = {
         cashPrice: marketData.hankinsonCashPrice
     };
+
+    const now = new Date().toISOString();
 
     // Calculate dynamic prices for each buyer
     const dynamicBuyers = await Promise.all(filteredBuyers.map(async (buyer) => {
         // Get USDA basis for this buyer's region
         const regionKey = usdaMarketService.getRegionForState(buyer.state);
         let basis = buyer.basis;
+        let basisFromUSDA = false;
 
         // Override basis with official USDA report if available AND it's corn
         if (selectedCrop === 'Yellow Corn' && regionKey && regionalAdjustments[regionKey]) {
             basis = regionalAdjustments[regionKey].basisAdjustment;
+            basisFromUSDA = true;
         }
 
         // Calculate Cash Price: Futures + Basis
@@ -53,18 +59,46 @@ export const fetchRealBuyersFromGoogle = async (selectedCrop: string = 'Yellow C
         const newNetPrice = newCashPrice - newFreightCost;
 
         // Calculate difference vs Hankinson benchmark for this crop
-        // Positive = better than selling at Hankinson, Negative = worse
         const benchmarkDiff = parseFloat((newNetPrice - hankinsonBenchmark.cashPrice).toFixed(2));
+
+        // Build Trust Layer provenance
+        const provenance: PriceProvenance = {
+            futures: futuresSource,
+            basis: {
+                value: basis,
+                confidence: basisFromUSDA ? 'verified' : 'estimated',
+                source: basisFromUSDA ? `USDA AMS (${regionalAdjustments[regionKey]?.source || 'Regional'})` : 'Regional Estimate',
+                timestamp: now,
+                staleAfterMinutes: 60
+            },
+            freight: {
+                value: newFreightCost,
+                confidence: 'estimated',
+                source: `BNSF Tariff 4022 · ${freightInfo.origin || 'Campbell, MN'}`,
+                timestamp: now,
+                staleAfterMinutes: 1440 // Daily
+            },
+            fees: {
+                value: 0,
+                confidence: 'verified',
+                source: 'None',
+                timestamp: now,
+                staleAfterMinutes: 99999
+            }
+        };
 
         return {
             ...buyer,
             basis: parseFloat(basis.toFixed(2)),
-            freightCost: parseFloat((-newFreightCost).toFixed(2)), // Negative for display
+            freightCost: parseFloat((-newFreightCost).toFixed(2)),
             cashPrice: parseFloat(newCashPrice.toFixed(2)),
             netPrice: parseFloat(newNetPrice.toFixed(2)),
             futuresPrice: currentFutures,
-            benchmarkDiff, // + means better than Hankinson, - means worse
-            dataSource: (selectedCrop === 'Yellow Corn' && regionalAdjustments[regionKey]) ? regionalAdjustments[regionKey].source : 'fallback'
+            contractMonth: marketData.contractMonth,
+            benchmarkDiff,
+            lastUpdated: now,
+            verified: getOverallConfidence(provenance) === 'verified',
+            provenance
         };
     }));
 

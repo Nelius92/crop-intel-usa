@@ -1,6 +1,8 @@
 // Service to manage global market data
 // Connected to real market data sources for production accuracy
 
+import { DataSource } from '../types';
+
 export interface MarketData {
     futuresPrice: number;
     contractMonth: string;
@@ -134,5 +136,21 @@ export const marketDataService = {
             currentRules.hankinsonBasis
         );
         lastFetchTime = Date.now();
+    },
+
+    // Trust Layer: get provenance metadata for futures price
+    getFuturesSource: (crop: string = 'Yellow Corn'): DataSource => {
+        const data = marketDataService.getCropMarketData(crop);
+        const sourceLabel = data.source === 'usda' ? 'USDA AMS'
+            : data.source === 'cme' ? 'CME Group'
+                : data.source === 'cached' ? 'Cached Market Data'
+                    : `${data.contractMonth} Fallback`;
+        return {
+            value: data.futuresPrice,
+            confidence: data.source === 'fallback' ? 'estimated' : 'verified',
+            source: sourceLabel,
+            timestamp: data.lastUpdated || new Date().toISOString(),
+            staleAfterMinutes: 60
+        };
     }
 };

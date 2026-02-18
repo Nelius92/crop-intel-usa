@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Phone, Navigation, Share2, Train, Globe } from 'lucide-react';
-import { HeatmapPoint, Buyer, Transloader } from '../types';
+import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown } from 'lucide-react';
+import { HeatmapPoint, Buyer, Transloader, isDataStale } from '../types';
+import { SourceLabel, formatTimeAgo } from './TrustBadge';
 
 interface OpportunityDrawerProps {
     item: HeatmapPoint | Buyer | Transloader | null;
@@ -11,6 +12,7 @@ interface OpportunityDrawerProps {
 export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onClose }) => {
     const isBuyer = (item: any): item is Buyer => 'type' in item && ['elevator', 'processor', 'feedlot', 'shuttle', 'export', 'river', 'ethanol'].includes(item.type);
     const isTransloader = (item: any): item is Transloader => 'type' in item && item.type === 'transload';
+    const [showExplain, setShowExplain] = useState(false);
 
     if (!item) return null;
 
@@ -81,16 +83,41 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                         </>
                                     )}
                                 </div>
-                                {/* Data Source Indicator for Buyers */}
-                                {isBuyer(item) && (
-                                    <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                        <span>
-                                            Source: {(item as any).dataSource === 'usda-ams' ? 'USDA AMS' : (item as any).verified ? 'Verified Market Data' : 'Market Estimates'} • Updated: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })}
-                                        </span>
-                                    </div>
+
+                                {/* ─── Trust Layer: Data Freshness ─── */}
+                                {isBuyer(item) && item.provenance && (
+                                    <DataFreshnessBar provenance={item.provenance} />
                                 )}
                             </div>
+
+                            {/* ─── Trust Layer: Explain This Calculation ─── */}
+                            {isBuyer(item) && item.provenance && (
+                                <div>
+                                    <button
+                                        onClick={() => setShowExplain(!showExplain)}
+                                        className="w-full flex items-center justify-between py-2.5 px-3 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 transition-colors group"
+                                    >
+                                        <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                                            Explain This Calculation
+                                        </span>
+                                        <ChevronDown size={14} className={`text-zinc-500 transition-transform ${showExplain ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {showExplain && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <CalculationBreakdown buyer={item} />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            )}
 
                             {/* Buyer Actions (Only for Buyers) */}
                             {isBuyer(item) && (
@@ -151,6 +178,124 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
     );
 };
 
+// ─── Calculation Breakdown (Trust Layer core) ─────────────────────
+const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
+    const p = buyer.provenance!;
+    // Hankinson net = buyer net - benchmarkDiff
+    const hankinsonNet = ((buyer.netPrice ?? 0) - (buyer.benchmarkDiff ?? 0));
+
+    return (
+        <div className="mt-3 p-3 bg-black/40 rounded-xl border border-white/5 space-y-2.5 text-sm font-mono">
+            {/* Origin */}
+            <div className="text-[10px] text-zinc-500 uppercase tracking-widest font-sans font-bold mb-2">
+                Origin: Campbell, MN (BNSF Wahpeton Sub)
+            </div>
+
+            {/* Futures */}
+            <CalcRow
+                label="Futures"
+                value={`$${p.futures.value.toFixed(2)}`}
+                ds={p.futures}
+                indent={false}
+            />
+            {/* Basis */}
+            <CalcRow
+                label="+ Basis"
+                value={`${p.basis.value >= 0 ? '+' : ''}$${p.basis.value.toFixed(2)}`}
+                ds={p.basis}
+                indent={false}
+            />
+            {/* Divider */}
+            <div className="border-t border-dashed border-zinc-700 my-1" />
+            {/* Cash */}
+            <div className="flex justify-between items-center text-zinc-200">
+                <span>= Cash</span>
+                <span className="font-bold">${buyer.cashPrice.toFixed(2)}</span>
+            </div>
+            {/* Freight */}
+            <CalcRow
+                label="– Freight"
+                value={`-$${p.freight.value.toFixed(2)}`}
+                ds={p.freight}
+                indent={false}
+                color="text-red-400"
+            />
+            {/* Fees */}
+            <CalcRow
+                label="– Fees"
+                value={`$${p.fees.value.toFixed(2)}`}
+                ds={p.fees}
+                indent={false}
+            />
+            {/* Divider */}
+            <div className="border-t border-dashed border-zinc-700 my-1" />
+            {/* Net */}
+            <div className="flex justify-between items-center">
+                <span className="text-zinc-200 font-bold">= Net Price</span>
+                <span className="text-green-400 font-bold text-base">${buyer.netPrice?.toFixed(2)}</span>
+            </div>
+            <div className="text-[10px] text-zinc-500 font-sans">
+                ← What you receive at Campbell, MN
+            </div>
+
+            {/* Benchmark */}
+            {buyer.benchmarkDiff !== undefined && (
+                <div className="mt-3 pt-2.5 border-t border-zinc-800">
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-zinc-400 font-sans">vs Hankinson</span>
+                        <span className={`font-bold ${buyer.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                            {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
+                        </span>
+                    </div>
+                    <div className="text-[10px] text-zinc-600 font-sans mt-1">
+                        Formula: Net – (Hank Cash – $0.30 truck)
+                        {' '}= ${buyer.netPrice?.toFixed(2)} – ${hankinsonNet.toFixed(2)}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Calculation Row with Source Label ─────────────────────────────
+const CalcRow: React.FC<{
+    label: string;
+    value: string;
+    ds: import('../types').DataSource;
+    indent?: boolean;
+    color?: string;
+}> = ({ label, value, ds, color = 'text-zinc-300' }) => (
+    <div className="space-y-0.5">
+        <div className="flex justify-between items-center">
+            <span className={color}>{label}</span>
+            <span className={`${color} font-semibold`}>{value}</span>
+        </div>
+        <div className="flex justify-end">
+            <SourceLabel ds={ds} />
+        </div>
+    </div>
+);
+
+// ─── Data Freshness Bar ───────────────────────────────────────────
+const DataFreshnessBar: React.FC<{ provenance: import('../types').PriceProvenance }> = ({ provenance }) => {
+    const mostStale = [provenance.futures, provenance.basis, provenance.freight]
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0];
+    const stale = isDataStale(mostStale);
+
+    return (
+        <div className={`mt-3 flex items-center gap-2 text-[10px] px-2 py-1.5 rounded-lg border ${stale
+            ? 'bg-amber-500/5 border-amber-500/20 text-amber-400'
+            : 'bg-green-500/5 border-green-500/20 text-green-500'
+            }`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${stale ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
+            <span>
+                {stale ? '⚠ Data may be stale' : 'Data fresh'} · Basis updated {formatTimeAgo(provenance.basis.timestamp)}
+                {' '}· Freight: {provenance.freight.source.split('·')[0].trim()}
+            </span>
+        </div>
+    );
+};
+
 const ActionButton = ({ icon, label, active = false, onClick, disabled = false }: any) => (
     <button
         onClick={onClick}
@@ -180,3 +325,4 @@ const DataCard = ({ label, value, icon, color = 'text-white', highlight = false 
         </div>
     </div>
 );
+

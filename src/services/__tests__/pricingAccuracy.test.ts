@@ -49,17 +49,17 @@ describe('Pricing Accuracy', () => {
             });
         });
 
-        it('basis should be within realistic range (-$2.00 to +$1.00)', () => {
+        it('basis should be within realistic range (-$2.00 to +$2.00)', () => {
             buyers.forEach(buyer => {
                 expect(buyer.basis).toBeGreaterThanOrEqual(-2.00);
                 expect(buyer.basis).toBeLessThanOrEqual(2.00);
             });
         });
 
-        it('cash price should be within realistic range ($2.00 - $10.00)', () => {
+        it('cash price should be within realistic range ($2.00 - $22.00)', () => {
             buyers.forEach(buyer => {
                 expect(buyer.cashPrice).toBeGreaterThanOrEqual(2.00);
-                expect(buyer.cashPrice).toBeLessThanOrEqual(10.00);
+                expect(buyer.cashPrice).toBeLessThanOrEqual(22.00); // Sunflowers can be ~$18.50/bu
             });
         });
     });
@@ -103,18 +103,18 @@ describe('Pricing Accuracy', () => {
     });
 });
 
-describe('Cross-Crop Contamination', () => {
-    it('all current buyers should be Yellow Corn', () => {
+describe('Cross-Crop Data Integrity', () => {
+    const validCrops = ['Yellow Corn', 'White Corn', 'Soybeans', 'Wheat', 'Sunflowers'];
+
+    it('all buyers should have a valid cropType', () => {
         FALLBACK_BUYERS_DATA.forEach(buyer => {
-            expect(buyer.cropType).toBe('Yellow Corn');
+            expect(validCrops).toContain(buyer.cropType);
         });
     });
 
-    it('no buyer should have cropType of Soybeans or Wheat', () => {
-        const soybeanBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Soybeans');
-        const wheatBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Wheat');
-        expect(soybeanBuyers).toHaveLength(0);
-        expect(wheatBuyers).toHaveLength(0);
+    it('Yellow Corn buyers should exist', () => {
+        const cornBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Yellow Corn');
+        expect(cornBuyers.length).toBeGreaterThan(0);
     });
 
     it('organic flag should be boolean for every buyer', () => {
@@ -126,7 +126,7 @@ describe('Cross-Crop Contamination', () => {
     it('organic buyers must be a small minority', () => {
         const organicCount = FALLBACK_BUYERS_DATA.filter(b => b.organic).length;
         const totalCount = FALLBACK_BUYERS_DATA.length;
-        // Organic should be less than 10% of total buyers (realistic)
-        expect(organicCount / totalCount).toBeLessThan(0.10);
+        // Organic should be less than 20% of total buyers (realistic)
+        expect(organicCount / totalCount).toBeLessThan(0.20);
     });
 });

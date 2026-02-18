@@ -15,19 +15,52 @@ export interface HeatmapPoint extends Coordinates {
     marketLabel?: string; // e.g., "Strong export demand"
 }
 
-export type BuyerType = 'ethanol' | 'feedlot' | 'processor' | 'river' | 'shuttle' | 'export' | 'elevator';
+export type BuyerType = 'ethanol' | 'feedlot' | 'processor' | 'river' | 'shuttle' | 'export' | 'elevator' | 'crush' | 'transload';
+
+// ─── Trust Layer: Price Provenance ───────────────────────────────
+export type DataConfidence = 'verified' | 'estimated' | 'missing';
+
+export interface DataSource {
+    value: number;
+    confidence: DataConfidence;
+    source: string;              // e.g. "USDA AMS", "BNSF Tariff 4022"
+    timestamp: string;           // ISO string of when this data was obtained
+    staleAfterMinutes: number;   // Mark stale if older than this
+}
+
+export interface PriceProvenance {
+    futures: DataSource;
+    basis: DataSource;
+    freight: DataSource;
+    fees: DataSource;
+}
+
+/** Check if a DataSource is stale based on its timestamp and threshold */
+export function isDataStale(ds: DataSource): boolean {
+    const ageMs = Date.now() - new Date(ds.timestamp).getTime();
+    return ageMs > ds.staleAfterMinutes * 60 * 1000;
+}
+
+/** Get the overall confidence for a buyer (lowest of all sources) */
+export function getOverallConfidence(p: PriceProvenance): DataConfidence {
+    const levels: DataConfidence[] = [p.futures.confidence, p.basis.confidence, p.freight.confidence];
+    if (levels.includes('missing')) return 'missing';
+    if (levels.includes('estimated')) return 'estimated';
+    return 'verified';
+}
+// ─────────────────────────────────────────────────────────────────
 
 export interface Buyer extends Coordinates {
     id: string;
     name: string;
     type: BuyerType;
-    cropType?: CropType; // The specific crop this buyer purchases
-    organic?: boolean; // True if this buyer handles organic grain
-    basis: number; // Single value for chart
+    cropType?: CropType;
+    organic?: boolean;
+    basis: number;
     cashPrice: number;
     city: string;
     state: string;
-    region: string; // e.g., "South Texas"
+    region: string;
     railAccessible: boolean;
     nearTransload: boolean;
     contactName?: string;
@@ -41,12 +74,15 @@ export interface Buyer extends Coordinates {
     netPrice?: number;
     freightCost?: number;
     futuresPrice?: number;
-    contractMonth?: string; // e.g. "Dec 2025"
-    benchmarkDiff?: number; // Difference from Hankinson Renewable Energy
-    verified?: boolean; // True if data passed the AI Auditor check
-    isManual?: boolean; // True if manually entered by user
-    lastUpdated?: string; // ISO timestamp
-    confidenceScore?: number; // 0-100 score of data reliability
+    contractMonth?: string;
+    benchmarkDiff?: number;
+    verified?: boolean;          // Now derived from provenance
+    isManual?: boolean;
+    lastUpdated?: string;
+    confidenceScore?: number;
+    railConfidence?: number;     // 0-100 BNSF rail-served confidence
+    dataSource?: string;         // Legacy compat
+    provenance?: PriceProvenance; // Trust Layer
 }
 
 export interface MarketOracle {
