@@ -6,7 +6,10 @@ import { BuyerMarkers } from './BuyerMarkers';
 import { OpportunityDrawer } from './OpportunityDrawer';
 
 // Token from environment variables
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+if (MAPBOX_TOKEN) {
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+}
 
 interface CornMapProps {
     showHeatmap: boolean;
