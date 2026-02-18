@@ -54,10 +54,16 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                     {isBuyer(item) ? (
                                         <>
-                                            <DataCard label="Cash Bid" value={`$${item.cashPrice.toFixed(2)}`} highlight />
+                                            <DataCard label="Net Price" value={`$${item.netPrice?.toFixed(2) || '-'}`} color="text-green-400" highlight />
+                                            <DataCard label="Cash Bid" value={`$${item.cashPrice.toFixed(2)}`} />
                                             <DataCard label="Basis" value={`${item.basis > 0 ? '+' : ''}${item.basis.toFixed(2)}`} color={item.basis >= 0 ? 'text-green-400' : 'text-red-400'} />
+                                            <DataCard label="Freight" value={`-$${Math.abs(item.freightCost ?? 0).toFixed(2)}`} color="text-red-400" />
                                             <DataCard label="Rail Access" value={item.railAccessible ? 'Yes' : 'No'} icon={<Train size={14} />} />
-                                            <DataCard label="Region" value={item.region} />
+                                            {item.benchmarkDiff !== undefined ? (
+                                                <DataCard label="vs Hank" value={`${item.benchmarkDiff >= 0 ? '+' : ''}${item.benchmarkDiff.toFixed(2)}`} color={item.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'} />
+                                            ) : (
+                                                <DataCard label="Region" value={item.region} />
+                                            )}
                                         </>
                                     ) : isTransloader(item) ? (
                                         <>
@@ -80,7 +86,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                     <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500">
                                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                                         <span>
-                                            Source: {(item as any).dataSource === 'usda-ams' ? 'USDA AMS' : 'CME + Regional Basis'} • Updated: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })}
+                                            Source: {(item as any).dataSource === 'usda-ams' ? 'USDA AMS' : (item as any).verified ? 'Verified Market Data' : 'Market Estimates'} • Updated: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' })}
                                         </span>
                                     </div>
                                 )}

@@ -15,12 +15,14 @@ export interface HeatmapPoint extends Coordinates {
     marketLabel?: string; // e.g., "Strong export demand"
 }
 
-export type BuyerType = 'ethanol' | 'feedlot' | 'processor' | 'river' | 'shuttle' | 'export';
+export type BuyerType = 'ethanol' | 'feedlot' | 'processor' | 'river' | 'shuttle' | 'export' | 'elevator';
 
 export interface Buyer extends Coordinates {
     id: string;
     name: string;
     type: BuyerType;
+    cropType?: CropType; // The specific crop this buyer purchases
+    organic?: boolean; // True if this buyer handles organic grain
     basis: number; // Single value for chart
     cashPrice: number;
     city: string;

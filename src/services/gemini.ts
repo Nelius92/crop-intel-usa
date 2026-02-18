@@ -40,9 +40,7 @@ export class GeminiService {
 
         if (!API_KEY) {
             console.warn("Using fallback heatmap data (No API Key)");
-            // Only use fallback for Corn, otherwise we need to generate or return empty
-            if (crop === 'Yellow Corn') return this.perturbData(FALLBACK_HEATMAP_DATA);
-            return []; // No fallback for other crops yet
+            return this.perturbData(FALLBACK_HEATMAP_DATA);
         }
 
         const prompt = `
@@ -91,8 +89,8 @@ export class GeminiService {
     async getLiveBuyerData(crop: CropType = 'Yellow Corn'): Promise<Buyer[]> {
         if (!API_KEY) {
             console.warn("Using fallback buyer data (No API Key)");
-            if (crop === 'Yellow Corn') return FALLBACK_BUYERS_DATA;
-            return [];
+            const filtered = FALLBACK_BUYERS_DATA.filter((b: any) => b.cropType === crop);
+            return filtered.length > 0 ? filtered : FALLBACK_BUYERS_DATA;
         }
 
         const buyerContext = {

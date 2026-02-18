@@ -137,7 +137,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect }) => {
                                             ${buyer.netPrice?.toFixed(2) || '-'}
                                         </div>
                                         <div className="text-xs text-red-400 font-mono mt-1">
-                                            Freight: -${buyer.freightCost?.toFixed(2) || '0.00'}
+                                            Freight: -${Math.abs(buyer.freightCost ?? 0).toFixed(2)}
                                         </div>
                                     </div>
                                 </div>

@@ -9,22 +9,33 @@ import { marketDataService } from './marketDataService';
 import { usdaMarketService } from './usdaMarketService';
 import { calculateFreight } from './railService';
 
-export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {
-    // Fetch live market data
-    const currentFutures = marketDataService.getCurrentFuturesPrice();
+export const fetchRealBuyersFromGoogle = async (selectedCrop: string = 'Yellow Corn'): Promise<Buyer[]> => {
+    // Filter by crop type first
+    const filteredBuyers = FALLBACK_BUYERS_DATA.filter(b =>
+        (b.cropType || 'Yellow Corn') === selectedCrop
+    );
+
+    // Fetch live market data for the SPECIFIC CROP
+    const marketData = marketDataService.getCropMarketData(selectedCrop);
+    const currentFutures = marketData.futuresPrice;
+
+    // USDA regional adjustments (currently only for Corn, defaults to 0 others)
     const regionalAdjustments = await usdaMarketService.getRegionalAdjustments();
 
-    // Get Hankinson benchmark for comparison
-    const hankinsonBenchmark = marketDataService.getHankinsonBenchmark();
+    // Get Hankinson benchmark for comparison (Corn-based, need to verify if user wants crop-specific)
+    // For now, we compare against the crop-specific market data's "Hankinson" equivalent
+    const hankinsonBenchmark = {
+        cashPrice: marketData.hankinsonCashPrice
+    };
 
     // Calculate dynamic prices for each buyer
-    const dynamicBuyers = await Promise.all(FALLBACK_BUYERS_DATA.map(async (buyer) => {
+    const dynamicBuyers = await Promise.all(filteredBuyers.map(async (buyer) => {
         // Get USDA basis for this buyer's region
         const regionKey = usdaMarketService.getRegionForState(buyer.state);
         let basis = buyer.basis;
 
-        // Override basis with official USDA report if available
-        if (regionKey && regionalAdjustments[regionKey]) {
+        // Override basis with official USDA report if available AND it's corn
+        if (selectedCrop === 'Yellow Corn' && regionKey && regionalAdjustments[regionKey]) {
             basis = regionalAdjustments[regionKey].basisAdjustment;
         }
 
@@ -41,7 +52,7 @@ export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {
         // Calculate Net Price: Cash - Freight (what you receive)
         const newNetPrice = newCashPrice - newFreightCost;
 
-        // Calculate difference vs Hankinson benchmark
+        // Calculate difference vs Hankinson benchmark for this crop
         // Positive = better than selling at Hankinson, Negative = worse
         const benchmarkDiff = parseFloat((newNetPrice - hankinsonBenchmark.cashPrice).toFixed(2));
 
@@ -53,11 +64,21 @@ export const fetchRealBuyersFromGoogle = async (): Promise<Buyer[]> => {
             netPrice: parseFloat(newNetPrice.toFixed(2)),
             futuresPrice: currentFutures,
             benchmarkDiff, // + means better than Hankinson, - means worse
-            dataSource: regionalAdjustments[regionKey]?.source || 'fallback'
+            dataSource: (selectedCrop === 'Yellow Corn' && regionalAdjustments[regionKey]) ? regionalAdjustments[regionKey].source : 'fallback'
         };
     }));
 
     return dynamicBuyers;
+};
+
+// Helper: Get organic buyers
+export const getOrganicBuyers = (buyers: Buyer[]): Buyer[] => {
+    return buyers.filter(b => b.organic);
+};
+
+// Helper: Get conventional buyers
+export const getConventionalBuyers = (buyers: Buyer[]): Buyer[] => {
+    return buyers.filter(b => !b.organic);
 };
 
 // Get top buyers by NET PRICE (highest net price = best deal for seller)

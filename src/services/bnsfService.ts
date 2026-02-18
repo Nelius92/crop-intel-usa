@@ -40,6 +40,8 @@ const DISTANCES_FROM_CAMPBELL: Record<string, number> = {
     'KS': 650,   // Campbell to SW Kansas
     'ID': 1400,  // Campbell to Jerome
     'MN': 65,    // Campbell to local (Hankinson is ~25 miles)
+    'ND': 40,    // Campbell to Hankinson, ND (~25 miles)
+    'SD': 120,   // Campbell to South Dakota elevators
 };
 
 export const bnsfService = {
@@ -78,11 +80,17 @@ export const bnsfService = {
             // Idaho: Similar to PNW
             ratePerCar = BASE_RATE_CAMPBELL_TO_HEREFORD + 500;
             tariffItem = "4022-39011 (ID)";
-        } else if (destinationState === 'IA' || destinationState === 'NE' || destinationState === 'IL') {
+        } else if (destinationState === 'IA' || destinationState === 'NE' || destinationState === 'IL' || destinationState === 'MO') {
             // Midwest: Much shorter haul
             ratePerCar = BASE_RATE_CAMPBELL_TO_HEREFORD - 1500;
             tariffItem = "4022-39011 (Midwest)";
             distanceMiles = 400;
+        } else if (destinationState === 'MN' || destinationState === 'ND' || destinationState === 'SD') {
+            // Local / Short-haul: Campbell to Hankinson is ~25 miles
+            // Short-distance tariff rates are significantly lower
+            ratePerCar = 350;
+            tariffItem = "4022-Local (MN/ND/SD)";
+            distanceMiles = DISTANCES_FROM_CAMPBELL[destinationState] || 100;
         }
 
         const totalCost = ratePerCar + FUEL_SURCHARGE_AVG;

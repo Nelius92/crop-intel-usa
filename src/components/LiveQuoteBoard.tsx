@@ -12,7 +12,7 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
 
     // Get top 3 buyers by basis
     const topBuyers = [...buyers]
-        .sort((a, b) => b.basis - a.basis)
+        .sort((a, b) => (b.netPrice ?? 0) - (a.netPrice ?? 0))
         .slice(0, 3);
 
     return (

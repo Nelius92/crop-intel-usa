@@ -5,8 +5,8 @@ import { RAIL_LINES } from '../services/railService';
 import { BuyerMarkers } from './BuyerMarkers';
 import { OpportunityDrawer } from './OpportunityDrawer';
 
-// Hardcoded token as requested
-mapboxgl.accessToken = 'MAPBOX_TOKEN_REMOVED';
+// Token from environment variables
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 interface CornMapProps {
     showHeatmap: boolean;
@@ -151,47 +151,90 @@ export const CornMap: React.FC<CornMapProps> = ({
                 filter: ['in', 'STATE_NAME', ''] // Default empty filter
             });
 
-            // --- Rail Network Layer (Load from GeoJSON with owner-based styling) ---
-            // Try loading comprehensive GeoJSON first, fallback to static RAIL_LINES
+            // --- Premium Rail Network Layers (Glow + Core + Flow) ---
             fetch('/data/us-railroads.geojson')
                 .then(response => response.ok ? response.json() : Promise.reject('GeoJSON not available'))
                 .then(geojsonData => {
                     if (!map.current) return;
 
-                    map.current.addSource('us-rail-network', {
-                        type: 'geojson',
-                        data: geojsonData
-                    });
+                    if (!map.current.getSource('us-rail-network')) {
+                        map.current.addSource('us-rail-network', {
+                            type: 'geojson',
+                            data: geojsonData,
+                            lineMetrics: true // Enable gradient/flow support
+                        });
+                    }
 
-                    // Styled by railroad owner
+                    // 1. Outer Glow Layer (Atmospheric effect)
                     map.current.addLayer({
-                        id: 'rail-layer',
+                        id: 'rail-glow',
                         type: 'line',
                         source: 'us-rail-network',
                         layout: { 'line-join': 'round', 'line-cap': 'round' },
                         paint: {
                             'line-color': [
-                                'match',
-                                ['get', 'owner'],
-                                'BNSF', '#f97316',  // Orange
-                                'UP', '#facc15',    // Yellow
-                                'CSX', '#3b82f6',   // Blue
-                                'NS', '#3b82f6',    // Blue
-                                'CN', '#ef4444',    // Red
-                                'CPKC', '#a855f7',  // Purple
-                                '#64748b'           // Gray default
+                                'match', ['get', 'owner'],
+                                'BNSF', '#fb923c', // Orange-400
+                                'UP', '#fde047',   // Yellow-300
+                                'CSX', '#60a5fa',  // Blue-400
+                                'NS', '#818cf8',   // Indigo-400
+                                'CN', '#f87171',   // Red-400
+                                'CPKC', '#c084fc', // Purple-400
+                                '#94a3b8'          // Slate-400
                             ],
                             'line-width': [
-                                'match',
-                                ['get', 'type'],
-                                'mainline', 2.5,
-                                1.5  // branches
+                                'match', ['get', 'type'],
+                                'mainline', 6,
+                                3
                             ],
-                            'line-opacity': 0.75
+                            'line-opacity': 0.2,
+                            'line-blur': 2
+                        }
+                    });
+
+                    // 2. Core Line Layer (Sharp definition)
+                    map.current.addLayer({
+                        id: 'rail-core',
+                        type: 'line',
+                        source: 'us-rail-network',
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: {
+                            'line-color': [
+                                'match', ['get', 'owner'],
+                                'BNSF', '#f97316', // Orange-500
+                                'UP', '#eab308',   // Yellow-500
+                                'CSX', '#3b82f6',  // Blue-500
+                                'NS', '#6366f1',   // Indigo-500
+                                'CN', '#ef4444',   // Red-500
+                                'CPKC', '#a855f7', // Purple-500
+                                '#64748b'          // Slate-500
+                            ],
+                            'line-width': [
+                                'match', ['get', 'type'],
+                                'mainline', 2,
+                                1
+                            ],
+                            'line-opacity': 0.9
+                        }
+                    });
+
+                    // 3. Flow Animation Layer (Movement effect for mainlines)
+                    map.current.addLayer({
+                        id: 'rail-flow',
+                        type: 'line',
+                        source: 'us-rail-network',
+                        filter: ['==', 'type', 'mainline'], // Only animate mainlines
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: {
+                            'line-color': '#ffffff',
+                            'line-width': 2,
+                            'line-opacity': 0.6,
+                            'line-dasharray': [0, 4, 3] // Animated via setPaintProperty
                         }
                     });
                 })
                 .catch(() => {
+                    console.warn("Using fallback rail styling");
                     // Fallback to static RAIL_LINES data
                     if (!map.current) return;
 
@@ -311,16 +354,31 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
-            // Targeted Animation Loop
+            // Targeted Animation Loop (State Pulse & Rail Flow)
             let t = 0;
+            let dashOffset = 0;
+
             const animate = () => {
-                t += 0.05;
+                t += 0.02; // Slower, smoother pulse
+                dashOffset -= 0.2; // Flow speed
+
+                // 1. Organic "Breathing" for States
+                // Use a combination of sine waves for a less mechanical feel
                 const intensity = (Math.sin(t) + 1) / 2;
-                const breath = 0.3 + (intensity * 0.7); // Pulse between 0.3 and 1.0
+                const breath = 0.2 + (intensity * 0.5); // Range 0.2 -> 0.7
 
                 if (map.current?.getLayer('state-border-highlight')) {
                     map.current.setPaintProperty('state-border-highlight', 'line-opacity', breath);
+                    map.current.setPaintProperty('state-border-highlight', 'line-blur', 1 + (intensity * 2)); // Subtle blur pulse
                 }
+
+                // 2. Rail Flow Animation (Pulse)
+                if (map.current?.getLayer('rail-flow')) {
+                    // Pulsing opacity to simulate active data flow
+                    const flowPulse = (Math.sin(t * 3) + 1) / 2;
+                    map.current.setPaintProperty('rail-flow', 'line-opacity', 0.2 + (flowPulse * 0.4));
+                }
+
                 requestAnimationFrame(animate);
             };
             animate();
@@ -339,7 +397,12 @@ export const CornMap: React.FC<CornMapProps> = ({
 
         setVisibility('corn-heat-layer', showHeatmap);
         setVisibility('corn-point-layer', showHeatmap);
-        setVisibility('rail-layer', showRail);
+
+        // Toggle all rail-related layers (premium + fallback)
+        ['rail-layer', 'rail-glow', 'rail-core', 'rail-flow'].forEach(layer => {
+            setVisibility(layer, showRail);
+        });
+
         setVisibility('transloader-layer', !!showTransloaders);
         // state-glow-layer logic if needed, or always valid
         if (map.current.getLayer('state-border')) {

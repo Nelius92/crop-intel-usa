@@ -46,11 +46,11 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
                 // Calculate Freight & Net Price
                 // Freight calculation might need name/lat/lng
                 const buyersWithFreight = await Promise.all(enrichedData.map(async (buyer) => {
-                    const freight = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.name);
+                    const freight = await calculateFreight({ lat: buyer.lat, lng: buyer.lng, state: buyer.state, city: buyer.city }, buyer.name);
                     const netPrice = (buyer.cashPrice || 0) - freight.ratePerBushel;
                     return {
                         ...buyer,
-                        freightCost: freight.ratePerBushel,
+                        freightCost: parseFloat((-freight.ratePerBushel).toFixed(2)),
                         netPrice: parseFloat(netPrice.toFixed(2)),
                     };
                 }));
