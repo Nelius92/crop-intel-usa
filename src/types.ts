@@ -50,6 +50,28 @@ export function getOverallConfidence(p: PriceProvenance): DataConfidence {
 }
 // ─────────────────────────────────────────────────────────────────
 
+// ─── Rail-Served Confidence ──────────────────────────────────────
+export type RailConfidenceLevel = 'confirmed' | 'likely' | 'possible' | 'unverified';
+
+export interface RailEvidence {
+    distanceToTrackMiles: number;         // Haversine to nearest BNSF segment
+    nearestCorridorId: string;            // e.g. "bnsf-california-central"
+    nearestTransloadId?: string;          // If within 50mi of a transloader
+    nearestTransloadMiles?: number;
+    facilityTypeBonus: boolean;           // shuttle/export/river → +20 pts
+    manuallyVerified: boolean;            // Future: human audit flag
+    lastVerifiedAt?: string;              // ISO timestamp
+    score: number;                        // 0-100 composite score
+}
+
+export function railConfidenceFromScore(score: number): RailConfidenceLevel {
+    if (score >= 70) return 'confirmed';
+    if (score >= 40) return 'likely';
+    if (score >= 15) return 'possible';
+    return 'unverified';
+}
+// ─────────────────────────────────────────────────────────────────
+
 export interface Buyer extends Coordinates {
     id: string;
     name: string;
@@ -61,8 +83,10 @@ export interface Buyer extends Coordinates {
     city: string;
     state: string;
     region: string;
-    railAccessible: boolean;
+    railAccessible: boolean;             // Derived: score >= 40
     nearTransload: boolean;
+    railServedConfidence?: RailConfidenceLevel;
+    railEvidence?: RailEvidence;
     contactName?: string;
     contactPhone?: string;
     contactEmail?: string;
@@ -73,6 +97,8 @@ export interface Buyer extends Coordinates {
     fullAddress?: string;
     netPrice?: number;
     freightCost?: number;
+    freightMode?: 'rail' | 'truck';
+    freightFormula?: string;
     futuresPrice?: number;
     contractMonth?: string;
     benchmarkDiff?: number;
@@ -80,7 +106,7 @@ export interface Buyer extends Coordinates {
     isManual?: boolean;
     lastUpdated?: string;
     confidenceScore?: number;
-    railConfidence?: number;     // 0-100 BNSF rail-served confidence
+    railConfidence?: number;     // 0-100 BNSF rail-served confidence (legacy)
     dataSource?: string;         // Legacy compat
     provenance?: PriceProvenance; // Trust Layer
 }

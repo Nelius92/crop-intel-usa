@@ -529,6 +529,6 @@ function generate(): BuyerEntry[] {
 
 // Run
 const buyers = generate();
-const outPath = path.resolve(__dirname, '../src/data/buyers.json');
+const outPath = path.resolve(process.cwd(), 'src/data/buyers.json');
 fs.writeFileSync(outPath, JSON.stringify(buyers, null, 2));
 console.log(`   Written to: ${outPath}\n`);

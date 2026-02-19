@@ -198,13 +198,13 @@ describe('calculateFreight Integration', () => {
             expect(result.ratePerBushel).toBe(1.31);
         });
 
-        it('should fallback to $0.15 for unknown location', async () => {
+        it('should return a positive rate for unknown location (truck fallback)', async () => {
             const result = await calculateFreight(
                 { lat: 30.0, lng: -80.0 },
                 'Unknown Random Buyer'
             );
-            expect(result.ratePerBushel).toBe(0.15);
-            expect(result.distance).toBe(50);
+            // No state can be inferred → truck freight service computes based on distance
+            expect(result.ratePerBushel).toBeGreaterThan(0);
         });
     });
 });

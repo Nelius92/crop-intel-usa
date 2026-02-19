@@ -2,6 +2,7 @@
 // Connected to real market data sources for production accuracy
 
 import { DataSource } from '../types';
+import { cacheService, CACHE_TTL } from './cacheService';
 
 export interface MarketData {
     futuresPrice: number;
@@ -13,10 +14,6 @@ export interface MarketData {
     hankinsonCashPrice: number;
 }
 
-// Cache for futures price to avoid excessive fetches
-let cachedMarketData: Record<string, MarketData> = {};
-let lastFetchTime: number = 0;
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // Fallback values based on current market (updated Feb 17, 2026)
 const MARKET_DEFAULTS = {
@@ -67,19 +64,20 @@ function createMarketData(
 export const marketDataService = {
     // Get market data for a specific crop
     getCropMarketData: (crop: string = 'Yellow Corn'): MarketData => {
+        // Check unified cache first (30m TTL)
+        const cached = cacheService.get<MarketData>('market', crop);
+        if (cached) return cached;
+
         // Default to Yellow Corn if crop not found
         const defaults = MARKET_DEFAULTS[crop as keyof typeof MARKET_DEFAULTS] || MARKET_DEFAULTS['Yellow Corn'];
-
-        if (cachedMarketData[crop] && Date.now() - lastFetchTime < CACHE_DURATION_MS) {
-            return cachedMarketData[crop];
-        }
-
-        return createMarketData(
+        const data = createMarketData(
             defaults.price,
             defaults.contract,
             'fallback',
             defaults.hankinsonBasis
         );
+        cacheService.set('market', crop, data, CACHE_TTL.MARKET_MS);
+        return data;
     },
 
     // Backward compatibility for existing code (defaults to Corn)
@@ -106,36 +104,26 @@ export const marketDataService = {
 
     // Async fetch of latest futures price from real source
     fetchLatestFuturesPrice: async (): Promise<MarketData> => {
-        // In a real app, this would fetch for all crops. 
-        // For now, we simulate a refresh of the cache with defaults
-        lastFetchTime = Date.now();
+        // In a real app, this would fetch for all crops.
+        // Invalidate the market cache so getCropMarketData recomputes fresh values.
+        cacheService.invalidate('market');
         return marketDataService.getCropMarketData('Yellow Corn');
     },
 
     // Update Hankinson basis manually (defaults to Corn)
     updateHankinsonBasis: (basis: number): void => {
         const crop = 'Yellow Corn';
-        const currentRules = marketDataService.getCropMarketData(crop);
-        cachedMarketData[crop] = createMarketData(
-            currentRules.futuresPrice,
-            currentRules.contractMonth,
-            'cached',
-            basis
-        );
-        lastFetchTime = Date.now();
+        const current = marketDataService.getCropMarketData(crop);
+        const updated = createMarketData(current.futuresPrice, current.contractMonth, 'cached', basis);
+        cacheService.set('market', crop, updated, CACHE_TTL.MARKET_MS);
     },
 
     // Update fallback price manually (defaults to Corn)
     setFallbackPrice: (price: number, contract?: string): void => {
         const crop = 'Yellow Corn';
-        const currentRules = marketDataService.getCropMarketData(crop);
-        cachedMarketData[crop] = createMarketData(
-            price,
-            contract || currentRules.contractMonth,
-            'cached',
-            currentRules.hankinsonBasis
-        );
-        lastFetchTime = Date.now();
+        const current = marketDataService.getCropMarketData(crop);
+        const updated = createMarketData(price, contract || current.contractMonth, 'cached', current.hankinsonBasis);
+        cacheService.set('market', crop, updated, CACHE_TTL.MARKET_MS);
     },
 
     // Trust Layer: get provenance metadata for futures price

@@ -1,5 +1,7 @@
 import { RailNetwork, RailNode, Buyer } from '../types';
 import { bnsfService } from './bnsfService';
+import { truckFreightService } from './truckFreightService';
+import { cacheService, CACHE_TTL } from './cacheService';
 
 // Comprehensive BNSF & Major Rail Network Simulation
 export const RAIL_LINES: RailNetwork[] = [
@@ -261,13 +263,21 @@ export interface FreightQuote {
 }
 
 // Calculate freight FROM Campbell, MN TO buyer location
-// Uses buyer's state to determine proper BNSF rate
+// Uses buyer's state to determine proper BNSF rate, or falls back to truck
 export const calculateFreight = async (
     buyerLocation: { lat: number, lng: number, state?: string, city?: string },
-    destinationName: string
-): Promise<{ ratePerBushel: number, distance: number, origin: string }> => {
+    destinationName: string,
+    railAccessible: boolean = true
+): Promise<{ ratePerBushel: number, distance: number, origin: string, mode: 'rail' | 'truck', formula: string }> => {
+    const cacheKey = `${buyerLocation.state || 'unknown'}::${buyerLocation.city || destinationName}::${railAccessible}`;
+
+    // Return cached freight rate immediately if fresh (12h TTL)
+    const cached = cacheService.get<{ ratePerBushel: number, distance: number, origin: string, mode: 'rail' | 'truck', formula: string }>('freight', cacheKey);
+    if (cached) return cached;
+
     return new Promise((resolve) => {
         setTimeout(() => {
+
             let state = buyerLocation.state || "";
             let city = buyerLocation.city || "";
 
@@ -277,48 +287,62 @@ export const calculateFreight = async (
                     destinationName.includes("Stanislaus") || destinationName.includes("Gilbert") ||
                     destinationName.includes("Tulare") || destinationName.includes("Fresno")) {
                     state = "CA";
-                    city = "Modesto";
+                    city = city || "Modesto";
                 } else if (destinationName.includes("Yakima") || destinationName.includes("Pasco") ||
                     destinationName.includes("Walla") || destinationName.includes("Northwest")) {
                     state = "WA";
-                    city = "Yakima";
+                    city = city || "Yakima";
                 } else if (destinationName.includes("Hereford") || destinationName.includes("Texas") ||
                     destinationName.includes("Amarillo")) {
                     state = "TX";
-                    city = "Hereford";
+                    city = city || "Hereford";
                 } else if (destinationName.includes("Kansas")) {
                     state = "KS";
-                    city = "Garden City";
+                    city = city || "Garden City";
                 } else if (destinationName.includes("Jerome") || destinationName.includes("Idaho")) {
                     state = "ID";
-                    city = "Jerome";
+                    city = city || "Jerome";
                 } else if (destinationName.includes("Iowa") || destinationName.includes("Des Moines") ||
                     destinationName.includes("Cedar Rapids")) {
                     state = "IA";
-                    city = "Des Moines";
+                    city = city || "Des Moines";
                 } else if (destinationName.includes("Nebraska") || destinationName.includes("Albion") ||
                     destinationName.includes("Aurora")) {
                     state = "NE";
-                    city = "Central City";
-                } else {
-                    // Default fallback for unknown/local - minimal freight
-                    resolve({
-                        ratePerBushel: 0.15,
-                        distance: 50,
-                        origin: 'Campbell, MN'
-                    });
-                    return;
+                    city = city || "Central City";
                 }
             }
 
-            // Use BNSF Rate Engine FROM Campbell, MN
-            const bnsfRate = bnsfService.calculateRate(state, city);
+            // Decision: Rail or Truck?
+            if (railAccessible && state) {
+                // Use BNSF Rate Engine FROM Campbell, MN
+                const bnsfRate = bnsfService.calculateRate(state, city, buyerLocation.lat, buyerLocation.lng);
 
-            resolve({
-                ratePerBushel: bnsfRate.ratePerBushel,
-                distance: bnsfRate.distanceMiles,
-                origin: bnsfRate.origin
-            });
-        }, 100);
+                const result = {
+                    ratePerBushel: bnsfRate.ratePerBushel,
+                    distance: bnsfRate.distanceMiles,
+                    origin: bnsfRate.origin,
+                    mode: 'rail' as const,
+                    formula: bnsfRate.formula
+                };
+                cacheService.set('freight', cacheKey, result, CACHE_TTL.FREIGHT_MS);
+                resolve(result);
+            } else {
+                // Use truck model
+                const truckRate = truckFreightService.calculateRate(
+                    buyerLocation.lat, buyerLocation.lng,
+                    city, state
+                );
+                const result = {
+                    ratePerBushel: truckRate.ratePerBushel,
+                    distance: truckRate.distanceMiles,
+                    origin: 'Campbell, MN',
+                    mode: 'truck' as const,
+                    formula: truckRate.formula
+                };
+                cacheService.set('freight', cacheKey, result, CACHE_TTL.FREIGHT_MS);
+                resolve(result);
+            }
+        }, 50);
     });
 };

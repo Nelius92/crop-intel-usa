@@ -13,6 +13,16 @@ interface RailRate {
     fuelSurcharge: number; // Per car
     tariffItem: string;
     distanceMiles: number;
+    formula: string;
+}
+
+// Inline Haversine (avoids circular import with railService)
+function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 3959;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 // Campbell, MN coordinates (user's rail origin)
@@ -49,10 +59,18 @@ export const bnsfService = {
     getOrigin: () => CAMPBELL_MN,
 
     // Calculate rate FROM Campbell, MN TO destination
-    calculateRate: (destinationState: string, destinationCity: string): RailRate => {
+    // For short-haul (MN/ND/SD), pass actual coordinates for precise distance
+    calculateRate: (destinationState: string, destinationCity: string, destLat?: number, destLng?: number): RailRate => {
         let ratePerCar = BASE_RATE_CAMPBELL_TO_HEREFORD;
         let tariffItem = "4022-39011"; // General Corn Tariff
         let distanceMiles = DISTANCES_FROM_CAMPBELL[destinationState] || 500;
+
+        // For short-haul states, compute actual distance if coordinates provided
+        if (destLat !== undefined && destLng !== undefined &&
+            (destinationState === 'MN' || destinationState === 'ND' || destinationState === 'SD')) {
+            const straightLine = haversine(CAMPBELL_MN.lat, CAMPBELL_MN.lng, destLat, destLng);
+            distanceMiles = Math.round(straightLine * 1.3); // road factor
+        }
 
         // Apply Official 2025 Tariff Differentials (from Campbell, MN origin)
         if (destinationState === 'CA') {
@@ -86,11 +104,12 @@ export const bnsfService = {
             tariffItem = "4022-39011 (Midwest)";
             distanceMiles = 400;
         } else if (destinationState === 'MN' || destinationState === 'ND' || destinationState === 'SD') {
-            // Local / Short-haul: Campbell to Hankinson is ~25 miles
-            // Short-distance tariff rates are significantly lower
-            ratePerCar = 350;
-            tariffItem = "4022-Local (MN/ND/SD)";
+            // Short-haul: distance-based rail rate from Campbell, MN
+            // Use Haversine for actual distance to each buyer
             distanceMiles = DISTANCES_FROM_CAMPBELL[destinationState] || 100;
+            // Linear model: $100 base + $2.50/mile, floor $350/car
+            ratePerCar = Math.max(350, 100 + (distanceMiles * 2.5));
+            tariffItem = `4022-Local (${destinationState} · ${distanceMiles} mi)`;
         }
 
         const totalCost = ratePerCar + FUEL_SURCHARGE_AVG;
@@ -103,7 +122,8 @@ export const bnsfService = {
             ratePerBushel,
             fuelSurcharge: FUEL_SURCHARGE_AVG,
             tariffItem,
-            distanceMiles
+            distanceMiles,
+            formula: `BNSF ${tariffItem} · ${distanceMiles} mi · $${ratePerBushel}/bu`
         };
     }
 };

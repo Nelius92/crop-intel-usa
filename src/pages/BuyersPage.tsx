@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LiveQuoteBoard } from '../components/LiveQuoteBoard';
 import { BuyerTable } from '../components/BuyerTable';
 import { OpportunityDrawer } from '../components/OpportunityDrawer';
-import { fetchRealBuyersFromGoogle, enrichBuyerWithGoogleData } from '../services/buyersService';
+import {
+    fetchRealBuyersFromGoogle,
+    enrichBuyerWithGoogleData,
+    invalidateBuyerCache,
+    getBuyerCacheAge
+} from '../services/buyersService';
 import { marketDataService } from '../services/marketDataService';
 import { calculateFreight } from '../services/railService';
 import { Buyer, CropType } from '../types';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Clock } from 'lucide-react';
 
 interface BuyersPageProps {
     selectedCrop: CropType;
+}
+
+/** Format a cache age (ms) as a human-readable relative string. */
+function formatAge(ageMs: number): string {
+    const mins = Math.floor(ageMs / 60_000);
+    if (mins < 1) return 'just now';
+    if (mins === 1) return '1 min ago';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    return hrs === 1 ? '1 hr ago' : `${hrs} hr ago`;
 }
 
 export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
@@ -17,20 +32,15 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
-
-    // Filters
-    const [organicFilter, setOrganicFilter] = useState<'all' | 'organic' | 'conventional'>('all');
-    const [buyerTypeFilter, setBuyerTypeFilter] = useState<string>('all');
-
     const [oracle, setOracle] = useState<any>(null);
+    const [cacheAge, setCacheAge] = useState<number | null>(null);
+    const [fromCache, setFromCache] = useState(false);
 
-    const fetchBuyers = async () => {
+    const fetchBuyers = useCallback(async (forceRefresh: boolean = false) => {
         setLoading(true);
         setError(null);
         try {
-            // 1. Get market data specified for the selected crop
             const marketData = marketDataService.getCropMarketData(selectedCrop);
-
             setOracle({
                 futuresPrice: marketData.futuresPrice,
                 contractMonth: marketData.contractMonth,
@@ -38,66 +48,63 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                 hankinsonCashPrice: marketData.hankinsonCashPrice
             });
 
-            // 2. Fetch buyers with USDA-based pricing (uses buyersService)
-            // Pass selectedCrop to filter by crop type at the service level
-            const liveData = await fetchRealBuyersFromGoogle(selectedCrop);
+            // If forced, invalidate the buyers cache first
+            if (forceRefresh) {
+                invalidateBuyerCache(selectedCrop);
+            }
 
-            // 3. Sort by Net Price descending (Best deals first)
+            const ageBeforeFetch = getBuyerCacheAge(selectedCrop);
+            const liveData = await fetchRealBuyersFromGoogle(selectedCrop, undefined, forceRefresh);
+            const ageAfterFetch = getBuyerCacheAge(selectedCrop);
+
+            // Came from cache if age existed before and data was returned quickly (no compute)
+            setFromCache(ageBeforeFetch !== null && !forceRefresh);
+            setCacheAge(ageAfterFetch);
+
             const sortedData = [...liveData].sort((a, b) => (b.netPrice ?? 0) - (a.netPrice ?? 0));
             setBuyers(sortedData);
             setLoading(false);
-
         } catch (err) {
             console.error(err);
             setError("Unable to refresh buyer data.");
             setLoading(false);
         }
-    };
-
-    // Derived state for filtered buyers
-    const filteredBuyers = buyers.filter(buyer => {
-        // Filter by Organic/Conventional
-        if (organicFilter === 'organic' && !buyer.organic) return false;
-        if (organicFilter === 'conventional' && buyer.organic) return false;
-
-        // Filter by Buyer Type
-        if (buyerTypeFilter !== 'all' && buyer.type !== buyerTypeFilter) return false;
-
-        return true;
-    });
-
-    useEffect(() => {
-        fetchBuyers();
-
-        // Auto-refresh every 30 minutes (1800000 ms)
-        const intervalId = setInterval(() => {
-            console.log("Auto-refreshing market data...");
-            fetchBuyers();
-        }, 1800000);
-
-        return () => clearInterval(intervalId);
     }, [selectedCrop]);
 
-    const handleSelectBuyer = async (buyer: Buyer) => {
-        // Set immediately to show drawer
-        setSelectedBuyer(buyer);
+    // Update the cache age display every minute
+    useEffect(() => {
+        const tick = setInterval(() => {
+            setCacheAge(getBuyerCacheAge(selectedCrop));
+        }, 60_000);
+        return () => clearInterval(tick);
+    }, [selectedCrop]);
 
-        // Enrich with real-time Google Data in background
+    useEffect(() => {
+        fetchBuyers(false);
+        const intervalId = setInterval(() => {
+            console.log("Auto-refreshing market data...");
+            fetchBuyers(false);
+        }, 1_800_000); // 30 min auto-refresh
+        return () => clearInterval(intervalId);
+    }, [fetchBuyers]);
+
+    const handleRefresh = () => fetchBuyers(true);
+
+    const handleSelectBuyer = async (buyer: Buyer) => {
+        setSelectedBuyer(buyer);
         try {
             const enriched = await enrichBuyerWithGoogleData(buyer);
-            // Re-calculate freight if needed, or just preserve existing
-            const freight = await calculateFreight({ lat: enriched.lat, lng: enriched.lng, state: enriched.state, city: enriched.city }, enriched.name);
+            const freight = await calculateFreight(
+                { lat: enriched.lat, lng: enriched.lng, state: enriched.state, city: enriched.city },
+                enriched.name
+            );
             const netPrice = (enriched.cashPrice || 0) - freight.ratePerBushel;
-
             const finalBuyer = {
                 ...enriched,
                 freightCost: parseFloat((-freight.ratePerBushel).toFixed(2)),
                 netPrice: parseFloat(netPrice.toFixed(2))
             };
-
             setSelectedBuyer(prev => prev?.id === finalBuyer.id ? finalBuyer : prev);
-
-            // Update in list as well
             setBuyers(prev => prev.map(b => b.id === finalBuyer.id ? finalBuyer : b));
         } catch (err) {
             console.error("Failed to enrich buyer data", err);
@@ -106,7 +113,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
 
     return (
         <div className="w-full h-full flex flex-col bg-black relative overflow-hidden">
-            {/* Header - Static Sticky Bar */}
+            {/* Header */}
             <div className="flex-shrink-0 pt-16 sm:pt-20 px-4 pb-2 sm:pb-4 bg-black/80 backdrop-blur-sm z-20 border-b border-white/5">
                 <div className="flex flex-row justify-between items-center gap-3 sm:gap-4 bg-zinc-900/90 backdrop-blur-md p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-white/10 shadow-xl">
                     <div>
@@ -123,10 +130,24 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                                     </span>
                                 </>
                             )}
+                            <span className="text-zinc-600">•</span>
+                            <span className="text-slate-400 font-mono text-xs">
+                                {buyers.length} facilities
+                            </span>
+                            {/* Cache age indicator */}
+                            {cacheAge !== null && (
+                                <>
+                                    <span className="text-zinc-600">•</span>
+                                    <span className={`flex items-center gap-1 font-mono text-xs ${fromCache ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                                        <Clock size={10} />
+                                        {fromCache ? `Cached · ${formatAge(cacheAge)}` : formatAge(cacheAge)}
+                                    </span>
+                                </>
+                            )}
                         </div>
                     </div>
 
-                    {/* Hankinson Benchmark Badge (Only show if basis is not 0, or if it's explicitly corn) */}
+                    {/* Hankinson Benchmark Badge */}
                     {oracle && oracle.hankinsonBasis !== 0 && (
                         <div className="hidden md:flex flex-col items-end bg-emerald-900/30 border border-emerald-500/30 rounded-lg px-3 py-1.5">
                             <span className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Benchmark</span>
@@ -142,8 +163,9 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                     )}
 
                     <button
-                        onClick={fetchBuyers}
+                        onClick={handleRefresh}
                         disabled={loading}
+                        title="Force refresh all prices"
                         className="p-2 bg-white/5 rounded-lg border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
                     >
                         <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
@@ -166,44 +188,6 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                 )}
             </div>
 
-            {/* Filter Bar */}
-            <div className="flex-shrink-0 px-4 pb-2 flex gap-2 overflow-x-auto custom-scrollbar">
-                {/* Organic Toggle */}
-                <div className="flex bg-zinc-900/90 rounded-lg border border-white/10 p-1">
-                    <button
-                        onClick={() => setOrganicFilter('all')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${organicFilter === 'all' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white'}`}
-                    >
-                        All
-                    </button>
-                    <button
-                        onClick={() => setOrganicFilter('conventional')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${organicFilter === 'conventional' ? 'bg-yellow-500/20 text-yellow-200' : 'text-zinc-500 hover:text-white'}`}
-                    >
-                        Conv
-                    </button>
-                    <button
-                        onClick={() => setOrganicFilter('organic')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${organicFilter === 'organic' ? 'bg-green-500/20 text-green-200' : 'text-zinc-500 hover:text-white'}`}
-                    >
-                        Organic
-                    </button>
-                </div>
-
-                {/* Buyer Type Filter */}
-                <div className="flex bg-zinc-900/90 rounded-lg border border-white/10 p-1">
-                    {['all', 'elevator', 'processor', 'ethanol', 'feedlot'].map(type => (
-                        <button
-                            key={type}
-                            onClick={() => setBuyerTypeFilter(type)}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${buyerTypeFilter === type ? 'bg-blue-500/20 text-blue-200' : 'text-zinc-500 hover:text-white'}`}
-                        >
-                            {type}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
             {/* Error Banner */}
             {error && (
                 <div className="px-4 py-2">
@@ -214,31 +198,24 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                 </div>
             )}
 
-            {/* Main Content Grid - Scrollable Area */}
-            <div className="flex-1 overflow-y-auto px-4 pb-24 flex flex-col gap-6 custom-scrollbar">
+            {/* Main Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto px-4 pb-24 flex flex-col gap-4 custom-scrollbar">
+                {/* Top Quotes (compact for directory mode) */}
                 <div className="flex-shrink-0">
                     {loading && buyers.length === 0 ? (
-                        <div className="w-full h-[240px] bg-corn-card/50 rounded-xl animate-pulse" />
-                    ) : filteredBuyers.length > 0 ? (
-                        <LiveQuoteBoard buyers={filteredBuyers} onSelect={handleSelectBuyer} />
-                    ) : (
-                        <div className="w-full h-[240px] bg-corn-card/50 rounded-xl flex items-center justify-center text-slate-500 border border-white/5">
-                            <div className="text-center">
-                                <p>No buyers found matching your filters.</p>
-                                <button
-                                    onClick={() => { setOrganicFilter('all'); setBuyerTypeFilter('all'); }}
-                                    className="mt-2 text-corn-accent hover:underline text-sm"
-                                >
-                                    Clear Filters
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                        <div className="w-full h-[200px] bg-corn-card/50 rounded-xl animate-pulse" />
+                    ) : buyers.length > 0 ? (
+                        <LiveQuoteBoard buyers={buyers.slice(0, 10)} onSelect={handleSelectBuyer} />
+                    ) : null}
                 </div>
-                <div>
-                    {filteredBuyers.length > 0 && (
-                        <BuyerTable buyers={filteredBuyers} onSelect={handleSelectBuyer} />
-                    )}
+
+                {/* Buyer Directory Table (with built-in filters) */}
+                <div className="flex-1 min-h-0">
+                    <BuyerTable
+                        buyers={buyers}
+                        onSelect={handleSelectBuyer}
+                        allBuyers={buyers}
+                    />
                 </div>
             </div>
 

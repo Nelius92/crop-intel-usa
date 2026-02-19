@@ -34,9 +34,13 @@ vi.mock('../usdaMarketService', () => ({
     }
 }));
 
-vi.mock('../railService', () => ({
-    calculateFreight: async () => ({ ratePerBushel: 0.50, origin: 'Campbell, MN' })
-}));
+vi.mock('../railService', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../railService')>();
+    return {
+        ...actual,
+        calculateFreight: async () => ({ ratePerBushel: 0.50, origin: 'Campbell, MN' })
+    };
+});
 
 describe('buyersService', () => {
     describe('fetchRealBuyersFromGoogle', () => {

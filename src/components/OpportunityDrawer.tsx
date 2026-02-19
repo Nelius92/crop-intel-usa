@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown } from 'lucide-react';
 import { HeatmapPoint, Buyer, Transloader, isDataStale } from '../types';
 import { SourceLabel, formatTimeAgo } from './TrustBadge';
+import { getCorridorName } from '../services/railConfidenceService';
 
 interface OpportunityDrawerProps {
     item: HeatmapPoint | Buyer | Transloader | null;
@@ -59,8 +60,26 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                             <DataCard label="Net Price" value={`$${item.netPrice?.toFixed(2) || '-'}`} color="text-green-400" highlight />
                                             <DataCard label="Cash Bid" value={`$${item.cashPrice.toFixed(2)}`} />
                                             <DataCard label="Basis" value={`${item.basis > 0 ? '+' : ''}${item.basis.toFixed(2)}`} color={item.basis >= 0 ? 'text-green-400' : 'text-red-400'} />
-                                            <DataCard label="Freight" value={`-$${Math.abs(item.freightCost ?? 0).toFixed(2)}`} color="text-red-400" />
-                                            <DataCard label="Rail Access" value={item.railAccessible ? 'Yes' : 'No'} icon={<Train size={14} />} />
+                                            <DataCard label={`Freight (${item.freightMode === 'rail' ? '🚂 Rail' : '🚛 Truck'})`} value={`-$${Math.abs(item.freightCost ?? 0).toFixed(2)}`} color="text-red-400" />
+                                            {(() => {
+                                                const level = item.railServedConfidence || (item.railAccessible ? 'likely' : 'unverified');
+                                                const railLabel = level === 'confirmed' ? 'BNSF Confirmed'
+                                                    : level === 'likely' ? 'Likely Rail Access'
+                                                        : level === 'possible' ? 'Possible Rail Access'
+                                                            : 'Unverified Rail Access';
+                                                const railColor = level === 'confirmed' ? 'text-cyan-400'
+                                                    : level === 'likely' ? 'text-sky-400'
+                                                        : level === 'possible' ? 'text-amber-400'
+                                                            : 'text-slate-500';
+                                                return (
+                                                    <DataCard
+                                                        label="Rail Access"
+                                                        value={railLabel}
+                                                        color={railColor}
+                                                        icon={<Train size={14} />}
+                                                    />
+                                                );
+                                            })()}
                                             {item.benchmarkDiff !== undefined ? (
                                                 <DataCard label="vs Hank" value={`${item.benchmarkDiff >= 0 ? '+' : ''}${item.benchmarkDiff.toFixed(2)}`} color={item.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'} />
                                             ) : (
@@ -116,6 +135,43 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
+                                </div>
+                            )}
+
+                            {/* ─── Rail Evidence Detail ─── */}
+                            {isBuyer(item) && item.railEvidence && (
+                                <div className="p-3 bg-black/30 rounded-xl border border-white/5">
+                                    <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Rail Served Evidence</div>
+                                    <div className="space-y-1.5 text-xs font-mono">
+                                        <div className="flex justify-between">
+                                            <span className="text-zinc-500">Distance to Track</span>
+                                            <span className="text-zinc-300">{item.railEvidence.distanceToTrackMiles} mi</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-zinc-500">Nearest Corridor</span>
+                                            <span className="text-zinc-300">{getCorridorName(item.railEvidence.nearestCorridorId)}</span>
+                                        </div>
+                                        {item.railEvidence.nearestTransloadMiles && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-500">Nearest Transload</span>
+                                                <span className="text-zinc-300">{item.railEvidence.nearestTransloadMiles} mi</span>
+                                            </div>
+                                        )}
+                                        {item.railEvidence.facilityTypeBonus && (
+                                            <div className="flex justify-between">
+                                                <span className="text-zinc-500">Facility Bonus</span>
+                                                <span className="text-green-400">+20 pts (rail-dependent type)</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between pt-1 border-t border-white/5">
+                                            <span className="text-zinc-400 font-semibold">Score</span>
+                                            <span className={`font-bold ${item.railEvidence.score >= 70 ? 'text-cyan-400'
+                                                : item.railEvidence.score >= 40 ? 'text-sky-400'
+                                                    : item.railEvidence.score >= 15 ? 'text-amber-400'
+                                                        : 'text-slate-500'
+                                                }`}>{item.railEvidence.score}/100</span>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -248,8 +304,10 @@ const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
                         </span>
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans mt-1">
-                        Formula: Net – (Hank Cash – $0.30 truck)
-                        {' '}= ${buyer.netPrice?.toFixed(2)} – ${hankinsonNet.toFixed(2)}
+                        Hank Net = Hank Cash − $0.30 truck = ${hankinsonNet.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-zinc-600 font-sans">
+                        Δ = ${buyer.netPrice?.toFixed(2)} − ${hankinsonNet.toFixed(2)} = {buyer.benchmarkDiff?.toFixed(2)}
                     </div>
                 </div>
             )}

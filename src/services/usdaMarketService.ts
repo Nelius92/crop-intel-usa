@@ -2,6 +2,10 @@
 // Fetches daily grain reports from USDA AMS to drive regional pricing
 // API Documentation: https://marsapi.ams.usda.gov/
 
+import { cacheService, CACHE_TTL } from './cacheService';
+
+const USDA_CACHE_KEY = 'adjustments';
+
 export interface RegionalAdjustment {
     region: string;
     basisAdjustment: number; // The basis from report
@@ -20,10 +24,6 @@ export interface USDAGrainBid {
     reportDate: string;
 }
 
-// Cache for regional adjustments
-let cachedAdjustments: Record<string, RegionalAdjustment> | null = null;
-let lastFetchTime: number = 0;
-const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour (USDA updates once daily)
 
 // Fallback data based on latest known USDA reports (Feb 2026)
 const FALLBACK_ADJUSTMENTS: Record<string, RegionalAdjustment> = {
@@ -98,21 +98,17 @@ export const usdaMarketService = {
 
     // Fetch latest regional adjustments from USDA AMS
     getRegionalAdjustments: async (): Promise<Record<string, RegionalAdjustment>> => {
-        // Return cached if valid
-        if (cachedAdjustments && Date.now() - lastFetchTime < CACHE_DURATION_MS) {
-            return cachedAdjustments;
-        }
+        // Return cached if valid (60m TTL)
+        const cached = cacheService.get<Record<string, RegionalAdjustment>>('usda', USDA_CACHE_KEY);
+        if (cached) return cached;
 
         try {
             // Try USDA AMS Market News API
-            // Note: Full production would use specific report IDs like LM_GR110
             const response = await fetch(
                 'https://marsapi.ams.usda.gov/services/v1.2/reports/LM_GR110?q=commodity=Corn',
                 {
                     signal: AbortSignal.timeout(8000),
-                    headers: {
-                        'Accept': 'application/json'
-                    }
+                    headers: { 'Accept': 'application/json' }
                 }
             );
 
@@ -120,10 +116,9 @@ export const usdaMarketService = {
                 const data = await response.json();
                 const parsedAdjustments = parseUSDAReport(data);
                 if (Object.keys(parsedAdjustments).length > 0) {
-                    cachedAdjustments = parsedAdjustments;
-                    lastFetchTime = Date.now();
+                    cacheService.set('usda', USDA_CACHE_KEY, parsedAdjustments, CACHE_TTL.USDA_MS);
                     console.log('Loaded fresh USDA market data');
-                    return cachedAdjustments;
+                    return parsedAdjustments;
                 }
             }
         } catch (error) {
@@ -131,9 +126,9 @@ export const usdaMarketService = {
         }
 
         // Use fallback data
-        cachedAdjustments = { ...FALLBACK_ADJUSTMENTS };
-        lastFetchTime = Date.now();
-        return cachedAdjustments;
+        const fallback = { ...FALLBACK_ADJUSTMENTS };
+        cacheService.set('usda', USDA_CACHE_KEY, fallback, CACHE_TTL.USDA_MS);
+        return fallback;
     },
 
     // Get basis for a specific state
@@ -145,23 +140,24 @@ export const usdaMarketService = {
 
     // Update fallback data manually (for morning price updates)
     updateRegionalBasis: (region: string, basis: number, trend: 'UP' | 'DOWN' | 'FLAT'): void => {
-        if (!cachedAdjustments) {
-            cachedAdjustments = { ...FALLBACK_ADJUSTMENTS };
-        }
-        cachedAdjustments[region] = {
+        // Get current cache or start from fallback
+        const current = cacheService.get<Record<string, RegionalAdjustment>>('usda', USDA_CACHE_KEY) || { ...FALLBACK_ADJUSTMENTS };
+        current[region] = {
             region,
             basisAdjustment: basis,
             trend,
             reportDate: new Date().toISOString().split('T')[0],
             source: 'cached'
         };
+        cacheService.set('usda', USDA_CACHE_KEY, current, CACHE_TTL.USDA_MS);
         console.log(`Updated ${region} basis to ${basis >= 0 ? '+' : ''}${basis.toFixed(2)}`);
     },
 
     // Get data freshness info
     getDataFreshness: (): { lastUpdated: string; source: string } => {
-        if (cachedAdjustments) {
-            const firstRegion = Object.values(cachedAdjustments)[0];
+        const cached = cacheService.get<Record<string, RegionalAdjustment>>('usda', USDA_CACHE_KEY);
+        if (cached) {
+            const firstRegion = Object.values(cached)[0];
             return {
                 lastUpdated: firstRegion?.reportDate || 'Unknown',
                 source: firstRegion?.source || 'fallback'

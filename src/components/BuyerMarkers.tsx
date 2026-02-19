@@ -25,19 +25,24 @@ export const BuyerMarkers: React.FC<BuyerMarkersProps> = ({ map, buyers, onSelec
             // Render marker content using React
             const root = createRoot(el);
 
-            // Color based on type
+            // Color based on type + rail confidence
             let colorClass = 'bg-slate-500';
+            const railLevel = buyer.railServedConfidence || (buyer.railAccessible ? 'likely' : 'unverified');
             if (buyer.type === 'ethanol') colorClass = 'bg-green-500';
             else if (buyer.type === 'feedlot') colorClass = 'bg-amber-500';
-            else if (buyer.type === 'shuttle' || buyer.railAccessible) colorClass = 'bg-cyan-500';
+            else if (buyer.type === 'shuttle') colorClass = 'bg-cyan-500';
+            else if (railLevel === 'confirmed') colorClass = 'bg-cyan-500';
+            else if (railLevel === 'likely') colorClass = 'bg-sky-500';
 
             // High Bid Logic (Net Price > 4.50 or Basis > 0.20)
             const isHighBid = (buyer.netPrice && buyer.netPrice > 4.50) || buyer.basis > 0.20;
 
-            // Bigger glow for high bids
+            // Bigger glow for high bids, subtler glow for rail confidence
             const glowClass = isHighBid
                 ? 'animate-pulse-green shadow-[0_0_30px_rgba(34,197,94,0.6)] z-50'
-                : (buyer.railAccessible ? 'shadow-[0_0_15px_rgba(34,211,238,0.5)]' : '');
+                : (railLevel === 'confirmed' ? 'shadow-[0_0_15px_rgba(34,211,238,0.5)]'
+                    : railLevel === 'likely' ? 'shadow-[0_0_10px_rgba(56,189,248,0.3)]'
+                        : '');
 
             // Larger size for high bids
             const sizeClass = isHighBid ? 'w-6 h-6 border-4' : 'w-4 h-4 border-2';
@@ -50,8 +55,8 @@ export const BuyerMarkers: React.FC<BuyerMarkersProps> = ({ map, buyers, onSelec
                         onSelect(buyer);
                     }}
                 >
-                    {/* Ping effect for Rail Accessible */}
-                    {buyer.railAccessible && !isHighBid && (
+                    {/* Ping effect for confirmed Rail */}
+                    {railLevel === 'confirmed' && !isHighBid && (
                         <div className="absolute -inset-1 rounded-full border border-cyan-400 opacity-50 animate-ping" />
                     )}
                     {/* Stronger Ping for High Bid */}
