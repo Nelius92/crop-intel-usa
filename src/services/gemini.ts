@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Buyer, HeatmapPoint, MarketOracle, CropType } from '../types';
 import { FALLBACK_HEATMAP_DATA, FALLBACK_BUYERS_DATA } from './fallbackData';
+import { cacheService, CACHE_TTL } from './cacheService';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -35,6 +36,10 @@ export class GeminiService {
     }
 
     async getLiveHeatmapData(crop: CropType = 'Yellow Corn'): Promise<HeatmapPoint[]> {
+        const cacheKey = `heatmap::${crop}`;
+        const cached = cacheService.get<HeatmapPoint[]>('market', cacheKey);
+        if (cached) return cached;
+
         // Add timestamp to prompt to ensure fresh generation
         const timestamp = new Date().toISOString();
 
@@ -70,11 +75,13 @@ export class GeminiService {
 
             try {
                 const data = JSON.parse(jsonStr);
-                return data.map((item: any, index: number) => ({
+                const points = data.map((item: any, index: number) => ({
                     id: `heat-${index}`,
                     ...item,
                     isOpportunity: item.change24h > 2.0 || item.basis > 0.50
                 }));
+                cacheService.set('market', cacheKey, points, CACHE_TTL.MARKET_MS);
+                return points;
             } catch (parseError) {
                 console.error("JSON Parse Error, using perturbed fallback:", parseError);
                 return this.perturbData(FALLBACK_HEATMAP_DATA);
@@ -87,6 +94,10 @@ export class GeminiService {
     }
 
     async getLiveBuyerData(crop: CropType = 'Yellow Corn'): Promise<Buyer[]> {
+        const cacheKey = `live-buyers::${crop}`;
+        const cached = cacheService.get<Buyer[]>('market', cacheKey);
+        if (cached) return cached;
+
         if (!API_KEY) {
             console.warn("Using fallback buyer data (No API Key)");
             const filtered = FALLBACK_BUYERS_DATA.filter((b: any) => b.cropType === crop);
@@ -137,10 +148,12 @@ export class GeminiService {
 
             try {
                 const data = JSON.parse(jsonStr);
-                return data.map((item: any, index: number) => ({
+                const buyers = data.map((item: any, index: number) => ({
                     id: `buyer-${index}`,
                     ...item
                 }));
+                cacheService.set('market', cacheKey, buyers, CACHE_TTL.MARKET_MS);
+                return buyers;
             } catch (parseError) {
                 console.error("Buyer JSON Parse Error:", parseError);
                 return FALLBACK_BUYERS_DATA;
@@ -157,6 +170,10 @@ export class GeminiService {
 Basis levels across the Midwest are showing resilience this week, driven by steady demand from ethanol processors and a slight uptick in export interest. Eastern Corn Belt terminals are bidding aggressively to secure bushels, while the Western Corn Belt remains mixed due to variable logistics.
 
 Rail-accessible facilities are commanding a premium, with basis levels strengthening in the Southern Plains. Farmers are holding tight to remaining stocks, awaiting further price direction. Overall, the cash market feels supported, with limited downside risk in the near term.`;
+
+        const cacheKey = `intel::${crop}`;
+        const cached = cacheService.get<string>('market', cacheKey);
+        if (cached) return cached;
 
         if (!API_KEY) return FALLBACK_INTEL;
 
@@ -180,7 +197,9 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             `;
 
             const result = await this.model.generateContent(prompt);
-            return result.response.text();
+            const text = result.response.text();
+            cacheService.set('market', cacheKey, text, CACHE_TTL.MARKET_MS);
+            return text;
         } catch (error) {
             console.error("Error generating market intel:", error);
             return FALLBACK_INTEL;
@@ -232,6 +251,10 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
     }
 
     async getMarketOracle(crop: CropType = 'Yellow Corn'): Promise<MarketOracle> {
+        const cacheKey = `oracle::${crop}`;
+        const cached = cacheService.get<MarketOracle>('oracle', cacheKey);
+        if (cached) return cached;
+
         // Default Fallbacks (User Provided Truths from Guardian Hankinson)
         const FALLBACK_ORACLE: MarketOracle = {
             futuresPrice: 4.45,
@@ -278,11 +301,13 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const data = JSON.parse(jsonStr);
 
-            return {
+            const oracleData: MarketOracle = {
                 ...FALLBACK_ORACLE,
                 ...data,
                 lastUpdated: new Date().toISOString()
             };
+            cacheService.set('oracle', cacheKey, oracleData, CACHE_TTL.ORACLE_MS);
+            return oracleData;
         } catch (error) {
             console.error("Oracle Failed, using defaults:", error);
             return FALLBACK_ORACLE;
