@@ -7,20 +7,31 @@
         "dev": "tsx watch src/server.ts",
         "build": "tsc",
         "start": "node dist/server.js",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "migrate": "tsx src/cli/migrate.ts",
+        "buyers:seed": "tsx src/cli/buyers-seed.ts",
+        "buyers:sync": "tsx src/cli/buyers-sync.ts",
+        "buyers:verify:report": "tsx src/cli/buyers-verify-report.ts",
+        "buyers:review:export": "tsx src/cli/buyers-review-export.ts",
+        "buyers:review:import": "tsx src/cli/buyers-review-import.ts",
+        "bid:pipeline": "tsx src/cli/bid-pipeline.ts"
     },
     "dependencies": {
-        "express": "^4.18.2",
+        "@google/generative-ai": "^0.24.1",
+        "@mendable/firecrawl-js": "^4.15.0",
+        "@types/pg": "^8.16.0",
         "cors": "^2.8.5",
-        "helmet": "^7.1.0",
-        "express-rate-limit": "^7.1.5",
-        "zod": "^3.22.4",
         "dotenv": "^16.3.1",
-        "winston": "^3.11.0"
+        "express": "^4.18.2",
+        "express-rate-limit": "^7.1.5",
+        "helmet": "^7.1.0",
+        "pg": "^8.19.0",
+        "winston": "^3.11.0",
+        "zod": "^3.22.4"
     },
     "devDependencies": {
-        "@types/express": "^4.17.21",
         "@types/cors": "^2.8.17",
+        "@types/express": "^4.17.21",
         "@types/node": "^20.11.24",
         "tsx": "^4.7.1",
         "typescript": "^5.3.3"

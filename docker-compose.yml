@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: corn-intel-postgres
+    environment:
+      POSTGRES_DB: cornintel
+      POSTGRES_USER: cornintel
+      POSTGRES_PASSWORD: cornintel_local_change_me
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cornintel -d cornintel"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: corn-intel-api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      FRONTEND_URL: http://localhost
+      TRUST_PROXY_HOPS: 1
+      AUTO_RUN_MIGRATIONS: "true"
+      DATABASE_URL: postgresql://cornintel:cornintel_local_change_me@postgres:5432/cornintel
+      # Add these in a local compose override or host env for production use:
+      # GOOGLE_MAPS_API_KEY:
+      # GEMINI_API_KEY:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: corn-intel-frontend
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
