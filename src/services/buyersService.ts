@@ -3,13 +3,13 @@ import { Buyer, BuyerType, CropType } from '../types';
 // This service fetches and enriches buyer data with live market prices
 // Prices are calculated using: Cash = Futures + Basis, Net = Cash - Freight
 
-import { FALLBACK_BUYERS_DATA } from './fallbackData';
 import { marketDataService } from './marketDataService';
 import { usdaMarketService } from './usdaMarketService';
 import { calculateFreight } from './railService';
 import { enrichBuyersWithRailConfidence } from './railConfidenceService';
 import { TRANSLOADERS } from './transloaderService';
 import { cacheService, CACHE_TTL } from './cacheService';
+import { apiGetJson } from './apiClient';
 
 // ── Filter Interface ──
 export interface BuyerFilters {
@@ -20,6 +20,38 @@ export interface BuyerFilters {
     minRailConfidence?: number;
     bnsfServedOnly?: boolean; // Shortcut for minRailConfidence >= 70
     searchQuery?: string;
+}
+
+interface ApiBuyerDirectoryRecord {
+    id: string;
+    name: string;
+    type: BuyerType;
+    city: string;
+    state: string;
+    region: string;
+    lat: number;
+    lng: number;
+    cropType?: CropType;
+    organic?: boolean;
+    railConfidence?: number | null;
+    contactRole?: string | null;
+    facilityPhone?: string | null;
+    website?: string | null;
+    verifiedStatus?: 'verified' | 'needs_review' | 'unverified' | null;
+    contactConfidenceScore?: number | null;
+}
+
+
+async function fetchBuyerContactsFromApi(crop: string): Promise<ApiBuyerDirectoryRecord[]> {
+    try {
+        const result = await apiGetJson<{ data: ApiBuyerDirectoryRecord[] }>(
+            `/api/buyers?scope=all&crop=${encodeURIComponent(crop)}`
+        );
+        return result.data || [];
+    } catch (error) {
+        console.error("Failed to fetch buyers from API:", error);
+        throw new Error("Production API completely failed and fallbacks are explicitly disabled.");
+    }
 }
 
 export const fetchRealBuyersFromGoogle = async (
@@ -38,8 +70,40 @@ export const fetchRealBuyersFromGoogle = async (
         }
     }
 
-    // Start with all buyers
-    let filteredBuyers = [...FALLBACK_BUYERS_DATA];
+    const apiRecords = await fetchBuyerContactsFromApi(selectedCrop);
+
+    // Production mode: The backend API is the strict and only source of truth.
+    let filteredBuyers: Buyer[] = apiRecords.map((match) => {
+        return {
+            id: match.id,
+            name: match.name,
+            type: match.type,
+            city: match.city,
+            state: match.state,
+            lat: match.lat,
+            lng: match.lng,
+            region: match.region,
+            cropType: (match.cropType as CropType | undefined) ?? (selectedCrop as CropType),
+            organic: match.organic ?? false,
+            contactName: match.contactRole ?? 'Grain Desk',
+            contactPhone: match.facilityPhone ?? undefined,
+            website: match.website ?? undefined,
+            confidenceScore: match.contactConfidenceScore ?? undefined,
+            verified: match.verifiedStatus === 'verified',
+            railConfidence: match.railConfidence ?? undefined,
+            dataSource: 'api-directory',
+            // Pass through real scraped bid data (null if not yet scraped)
+            cashBid: (match as any).cashBid ?? null,
+            postedBasis: (match as any).postedBasis ?? null,
+            bidDate: (match as any).bidDate ?? null,
+            bidSource: (match as any).bidSource ?? null,
+            basis: 0,
+            cashPrice: 0,
+            // Derive rail accessibility from railConfidence score (types.ts: "Derived: score >= 40")
+            railAccessible: (match.railConfidence ?? 0) >= 40,
+            nearTransload: (match as any).nearTransload ?? false
+        } as Buyer;
+    });
 
     // Apply crop filter
     filteredBuyers = filteredBuyers.filter(b =>
@@ -50,28 +114,42 @@ export const fetchRealBuyersFromGoogle = async (
     const marketData = marketDataService.getCropMarketData(selectedCrop);
     const currentFutures = marketData.futuresPrice;
 
-    // USDA regional adjustments (currently only for Corn, defaults to 0 others)
-    const regionalAdjustments = await usdaMarketService.getRegionalAdjustments();
-
     // Get Hankinson benchmark for comparison
     const hankinsonBenchmark = {
         cashPrice: marketData.hankinsonCashPrice
     };
 
+    // Pre-load USDA regional basis adjustments for fallback pricing
+    const usdaAdjustments = await usdaMarketService.getRegionalAdjustments();
+
     // Calculate dynamic prices for each buyer
     const now = new Date().toISOString();
     const dynamicBuyers = await Promise.all(filteredBuyers.map(async (buyer) => {
-        // Get USDA basis for this buyer's region
-        const regionKey = usdaMarketService.getRegionForState(buyer.state);
-        let basis = buyer.basis;
+        // ── Price Calculation ──
+        // Priority 1: Real scraped bid (from bid-pipeline → DB → API)
+        // Priority 2: USDA regional basis estimate (Futures + Regional Basis)
+        const hasRealBid = (buyer as any).cashBid != null;
+        let newCashPrice: number;
+        let basis: number;
+        let basisConfidence: 'verified' | 'estimated';
+        let basisSourceLabel: string;
 
-        // Override basis with official USDA report if available AND it's corn
-        if (selectedCrop === 'Yellow Corn' && regionKey && regionalAdjustments[regionKey]) {
-            basis = regionalAdjustments[regionKey].basisAdjustment;
+        if (hasRealBid) {
+            // Use the real scraped cash bid directly (parse it because Postgres numeric returns as string)
+            newCashPrice = parseFloat((buyer as any).cashBid);
+            // Back-calculate basis from the real cash bid
+            basis = parseFloat((newCashPrice - currentFutures).toFixed(2));
+            basisConfidence = 'verified';
+            basisSourceLabel = (buyer as any).bidSource || 'Scraped Bid';
+        } else {
+            // Use USDA regional basis as an estimated price
+            const region = usdaMarketService.getRegionForState(buyer.state);
+            const regionalAdj = usdaAdjustments[region];
+            basis = regionalAdj?.basisAdjustment ?? -0.30;
+            newCashPrice = parseFloat((currentFutures + basis).toFixed(2));
+            basisConfidence = 'estimated';
+            basisSourceLabel = `USDA ${region} est.`;
         }
-
-        // Calculate Cash Price: Futures + Basis
-        const newCashPrice = currentFutures + basis;
 
         // Calculate Freight FROM Campbell, MN TO this buyer (cached 12h)
         const freightInfo = await calculateFreight(
@@ -81,7 +159,7 @@ export const fetchRealBuyersFromGoogle = async (
         );
         const newFreightCost = freightInfo.ratePerBushel;
 
-        // Calculate Net Price: Cash - Freight (what you receive)
+        // Net Price = Cash Price - Freight
         const newNetPrice = newCashPrice - newFreightCost;
 
         // Hankinson benchmark: HankNet = HankCash - $0.30 truck freight
@@ -90,21 +168,13 @@ export const fetchRealBuyersFromGoogle = async (
 
         const futuresSource = marketDataService.getFuturesSource(selectedCrop);
 
-        const basisSource = (selectedCrop === 'Yellow Corn' && regionKey && regionalAdjustments[regionKey])
-            ? {
-                value: basis,
-                confidence: 'verified' as const,
-                source: regionalAdjustments[regionKey].source,
-                timestamp: now,
-                staleAfterMinutes: 60
-            }
-            : {
-                value: basis,
-                confidence: 'estimated' as const,
-                source: 'Regional Estimate',
-                timestamp: now,
-                staleAfterMinutes: 120
-            };
+        const basisSource = {
+            value: basis,
+            confidence: basisConfidence,
+            source: basisSourceLabel,
+            timestamp: now,
+            staleAfterMinutes: hasRealBid ? 60 : 120
+        };
 
         const provenance = {
             futures: futuresSource,
@@ -114,7 +184,7 @@ export const fetchRealBuyersFromGoogle = async (
                 confidence: 'estimated' as const,
                 source: `BNSF Tariff 4022 (${freightInfo.mode})`,
                 timestamp: now,
-                staleAfterMinutes: 720 // 12h, matches freight cache TTL
+                staleAfterMinutes: 720
             },
             fees: {
                 value: 0,
@@ -142,7 +212,7 @@ export const fetchRealBuyersFromGoogle = async (
             lastUpdated: now,
             provenance,
             verified,
-            dataSource: (selectedCrop === 'Yellow Corn' && regionalAdjustments[regionKey]) ? regionalAdjustments[regionKey].source : 'fallback'
+            dataSource: hasRealBid ? ((buyer as any).bidSource || 'scraped-bid') : basisSourceLabel
         };
     }));
 
@@ -212,7 +282,8 @@ export const getTopNetPriceBuyers = (buyers: Buyer[], count: number = 5): Buyer[
 // Get top buyers by BASIS (useful for seeing market strength)
 export const getTop3BasisBuyers = (buyers: Buyer[]): Buyer[] => {
     return [...buyers]
-        .sort((a, b) => b.basis - a.basis)
+        .filter(b => b.basis !== undefined)
+        .sort((a, b) => (b.basis ?? 0) - (a.basis ?? 0))
         .slice(0, 3);
 };
 
@@ -248,15 +319,7 @@ export const getBuyersByRegion = (buyers: Buyer[], region: string): Buyer[] => {
         .sort((a, b) => (b.netPrice ?? 0) - (a.netPrice ?? 0));
 };
 
-// Deprecated mock generator
-export const generateBuyers = (_count: number): Buyer[] => {
-    return [];
-};
 
-// Enrich buyer with Google Maps data (disabled to save API costs)
-export const enrichBuyerWithGoogleData = async (buyer: Buyer): Promise<Buyer> => {
-    return buyer;
-};
 
 // Get market data freshness info
 export const getMarketDataInfo = async (): Promise<{ futuresPrice: number; dataSource: string; lastUpdated: string }> => {

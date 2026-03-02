@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cornintel.stack</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/cornelius/Documents/Corn Intel/scripts/macmini/start-stack.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <false/>
+  <key>WorkingDirectory</key>
+  <string>/Users/cornelius/Documents/Corn Intel</string>
+  <key>StandardOutPath</key>
+  <string>/Users/cornelius/Documents/Corn Intel/logs/launchd-stack.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cornelius/Documents/Corn Intel/logs/launchd-stack.err.log</string>
+</dict>
+</plist>

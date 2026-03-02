@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { runMigrations } from '../db/migrations.js';
 import { closeDbPool, isDatabaseConfigured, withDbTransaction } from '../db/pool.js';
 import { loadFacilitySeed, type FacilitySeedRecord } from '../seed/facilities.js';
+import { logger } from '../logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,14 +75,21 @@ async function main() {
 
     await runMigrations();
 
+    logger.info('Loading facility seed...');
     const { path: seedPath, facilities } = loadFacilitySeed();
+    logger.info(`Loaded ${facilities.length} facilities from seed.`);
+
+    logger.info('Loading generated buyer map...');
     const generatedBuyerMap = loadGeneratedBuyerMap();
+    logger.info(`Loaded ${generatedBuyerMap.size} generated buyers.`);
 
     let buyersInsertedOrUpdated = 0;
     let contactsInsertedOrUpdated = 0;
     let seedProvenanceInserted = 0;
 
+    logger.info('Starting database transaction...');
     await withDbTransaction(async (client) => {
+        logger.info('Transaction started.');
         for (const facility of facilities) {
             const externalSeedKey = stableExternalSeedKey(facility);
             const generatedMatch = generatedBuyerMap.get(externalSeedKey);

@@ -79,25 +79,10 @@ export const CloudHealthCheck = () => {
                 <div className="p-6 overflow-y-auto space-y-6">
                     {/* Environment Check */}
                     <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                        <h3 className="text-sm font-semibold text-white/70 mb-3 uppercase tracking-wider">Environment Variables</h3>
-                        <div className="grid grid-cols-1 gap-2">
-                            <div className="flex items-center justify-between p-2 bg-black/20 rounded">
-                                <span className="text-white/80">VITE_GEMINI_API_KEY</span>
-                                {import.meta.env.VITE_GEMINI_API_KEY ? (
-                                    <span className="text-green-400 flex items-center gap-1 text-sm"><CheckCircle size={14} /> Present</span>
-                                ) : (
-                                    <span className="text-red-400 flex items-center gap-1 text-sm"><XCircle size={14} /> Missing</span>
-                                )}
-                            </div>
-                            <div className="flex items-center justify-between p-2 bg-black/20 rounded">
-                                <span className="text-white/80">VITE_GOOGLE_MAPS_API_KEY</span>
-                                {import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
-                                    <span className="text-green-400 flex items-center gap-1 text-sm"><CheckCircle size={14} /> Present</span>
-                                ) : (
-                                    <span className="text-red-400 flex items-center gap-1 text-sm"><XCircle size={14} /> Missing</span>
-                                )}
-                            </div>
-                        </div>
+                        <h3 className="text-sm font-semibold text-white/70 mb-3 uppercase tracking-wider">Backend API Integrations</h3>
+                        <p className="text-sm text-slate-300">
+                            API keys for Gemini and Google Maps are now securely managed on the backend.
+                        </p>
                     </div>
 
                     {/* Gemini Tests */}

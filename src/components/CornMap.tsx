@@ -73,6 +73,7 @@ export const CornMap: React.FC<CornMapProps> = ({
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
+    const lastAutoFocusKey = useRef<string>('');
     const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | Transloader | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
     const [zoomedState, setZoomedState] = useState<string | null>(null);
@@ -102,15 +103,35 @@ export const CornMap: React.FC<CornMapProps> = ({
 
         map.current = new mapboxgl.Map({
             container: mapContainer.current!,
-            style: 'mapbox://styles/mapbox/dark-v11',
+            style: 'mapbox://styles/mapbox/navigation-night-v1',
             center: center,
             zoom: zoom,
-            pitch: 0,
+            pitch: 60,
+            bearing: -15,
             projection: { name: 'mercator' }
         });
 
         map.current.on('load', () => {
             setStyleLoaded(true);
+
+            // Add atmospheric fog for 3D depth
+            map.current?.setFog({
+                'range': [0.5, 3],
+                'color': '#0f172a', // Slate-900 for dark deep space look
+                'horizon-blend': 0.15,
+                'high-color': '#1e293b',
+                'space-color': '#020617',
+                'star-intensity': 0.6
+            });
+
+            // Add 3D Terrain
+            map.current?.addSource('mapbox-dem', {
+                'type': 'raster-dem',
+                'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                'tileSize': 512,
+                'maxzoom': 14
+            });
+            map.current?.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
 
             // 1. Add US States Source
             map.current?.addSource('us-states', {
@@ -137,22 +158,35 @@ export const CornMap: React.FC<CornMapProps> = ({
                 paint: {
                     'line-color': '#06b6d4',
                     'line-width': 1,
-                    'line-opacity': 0.1 // Static low opacity
+                    'line-opacity': 0 // Completely transparent base borders
                 }
             });
 
-            // 4. Add Highlighted Border Layer (For Animation)
+            // 4. Add Highlighted Border Layer (Sleek Glow)
             map.current?.addLayer({
                 id: 'state-border-highlight',
                 type: 'line',
                 source: 'us-states',
                 paint: {
-                    'line-color': '#22c55e', // Green for money/opportunity
-                    'line-width': 3,
-                    'line-opacity': 0 // Starts hidden, animated later
+                    'line-color': '#22c55e', // Neon Green
+                    'line-width': 2,
+                    'line-opacity': 0, // Animated later
+                    'line-blur': 4
                 },
                 filter: ['in', 'STATE_NAME', ''] // Default empty filter
             });
+
+            // 4b. Add Highlighted Fill Layer (Subtle Glass)
+            map.current?.addLayer({
+                id: 'state-fill-highlight',
+                type: 'fill',
+                source: 'us-states',
+                paint: {
+                    'fill-color': '#064e3b', // Deep emerald
+                    'fill-opacity': 0.15
+                },
+                filter: ['in', 'STATE_NAME', '']
+            }, 'state-border-highlight');
 
             // --- Premium Rail Network Layers (Glow + Core + Flow) ---
             fetch('/data/us-railroads.geojson')
@@ -177,7 +211,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                         paint: {
                             'line-color': [
                                 'match', ['get', 'owner'],
-                                'BNSF', '#fb923c', // Orange-400
+                                'BNSF', '#ff5500', // Intense Neon Orange for BNSF
                                 'UP', '#fde047',   // Yellow-300
                                 'CSX', '#60a5fa',  // Blue-400
                                 'NS', '#818cf8',   // Indigo-400
@@ -186,16 +220,22 @@ export const CornMap: React.FC<CornMapProps> = ({
                                 '#94a3b8'          // Slate-400
                             ],
                             'line-width': [
-                                'match', ['get', 'type'],
-                                'mainline', 6,
-                                3
+                                'interpolate', ['linear'], ['zoom'],
+                                3, 0.5,
+                                6, 2,
+                                10, 6
                             ],
-                            'line-opacity': 0.2,
-                            'line-blur': 2
+                            'line-opacity': [
+                                'interpolate', ['linear'], ['zoom'],
+                                3, 0.05, // Almost invisible at national level to avoid hairball
+                                6, 0.2,
+                                10, 0.4
+                            ],
+                            'line-blur': 4
                         }
                     });
 
-                    // 2. Core Line Layer (Sharp definition)
+                    // 2. Core Line Layer (Sharp definition depending on zoom)
                     map.current.addLayer({
                         id: 'rail-core',
                         type: 'line',
@@ -204,20 +244,26 @@ export const CornMap: React.FC<CornMapProps> = ({
                         paint: {
                             'line-color': [
                                 'match', ['get', 'owner'],
-                                'BNSF', '#f97316', // Orange-500
-                                'UP', '#eab308',   // Yellow-500
-                                'CSX', '#3b82f6',  // Blue-500
-                                'NS', '#6366f1',   // Indigo-500
-                                'CN', '#ef4444',   // Red-500
-                                'CPKC', '#a855f7', // Purple-500
-                                '#64748b'          // Slate-500
+                                'BNSF', '#ffffff',
+                                'UP', '#eab308',
+                                'CSX', '#3b82f6',
+                                'NS', '#6366f1',
+                                'CN', '#ef4444',
+                                'CPKC', '#a855f7',
+                                '#64748b'
                             ],
                             'line-width': [
-                                'match', ['get', 'type'],
-                                'mainline', 2,
-                                1
+                                'interpolate', ['linear'], ['zoom'],
+                                3, 0.2, // Ultra-thin at national level
+                                6, 1,
+                                12, 3
                             ],
-                            'line-opacity': 0.9
+                            'line-opacity': [
+                                'interpolate', ['linear'], ['zoom'],
+                                3, 0.1, // Faint at national level
+                                6, 0.5,
+                                10, 0.95
+                            ]
                         }
                     });
 
@@ -230,8 +276,12 @@ export const CornMap: React.FC<CornMapProps> = ({
                         layout: { 'line-join': 'round', 'line-cap': 'round' },
                         paint: {
                             'line-color': '#ffffff',
-                            'line-width': 2,
-                            'line-opacity': 0.6,
+                            'line-width': [
+                                'interpolate', ['linear'], ['zoom'],
+                                3, 0.5,
+                                8, 2
+                            ],
+                            'line-opacity': 0.4,
                             'line-dasharray': [0, 4, 3] // Animated via setPaintProperty
                         }
                     });
@@ -268,13 +318,24 @@ export const CornMap: React.FC<CornMapProps> = ({
 
             map.current?.addSource('corn-heat', {
                 type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] }
+                data: { type: 'FeatureCollection', features: [] },
+                cluster: true,
+                clusterMaxZoom: 10,
+                clusterRadius: 50,
+                clusterProperties: {
+                    hasOpportunity: ['any', ['get', 'isOpportunity']],
+                    weight: ['max', ['get', 'weight']]
+                }
             });
 
+            // 1. Heatmap Base
             map.current?.addLayer({
                 id: 'corn-heat-layer',
                 type: 'heatmap',
                 source: 'corn-heat',
+                // Optionally filter out clusters to avoid double counting, or use them.
+                // By not filtering '!', ['has', 'point_count'], the heatmap will include clusters
+                // using the max weight we defined above.
                 paint: {
                     'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 10, 1],
                     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 9, 3],
@@ -292,40 +353,137 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
+            // 2. Cluster Circles
+            map.current?.addLayer({
+                id: 'clusters',
+                type: 'circle',
+                source: 'corn-heat',
+                filter: ['has', 'point_count'],
+                paint: {
+                    'circle-color': '#0f172a', // Deep slate for cluster background
+                    'circle-radius': [
+                        'step',
+                        ['get', 'point_count'],
+                        16,  // size for < 5
+                        5,
+                        20,  // size for 5-14
+                        15,
+                        26   // size for >= 15
+                    ],
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': [
+                        'case',
+                        ['boolean', ['get', 'hasOpportunity'], false],
+                        '#22c55e', // Neon green stroke if cluster has opportunity
+                        '#38bdf8'  // Light blue otherwise
+                    ],
+                    'circle-opacity': 0.95,
+                    'circle-pitch-alignment': 'map',
+                    'circle-pitch-scale': 'map'
+                }
+            });
+
+            // 3. Cluster Count Text
+            map.current?.addLayer({
+                id: 'cluster-count',
+                type: 'symbol',
+                source: 'corn-heat',
+                filter: ['has', 'point_count'],
+                layout: {
+                    'text-field': '{point_count_abbreviated}',
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    'text-size': 12,
+                },
+                paint: {
+                    'text-color': '#ffffff'
+                }
+            });
+
+            // 4. Unclustered Individual Points
             map.current?.addLayer({
                 id: 'corn-point-layer',
                 type: 'circle',
                 source: 'corn-heat',
+                filter: ['!', ['has', 'point_count']],
                 minzoom: 4,
                 paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 10, 6],
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 8],
                     'circle-color': [
                         'case',
                         ['boolean', ['get', 'isOpportunity'], false],
-                        '#22d3ee',
+                        '#22c55e', // Neon green for buyers on rail
                         '#64748b'
                     ],
-                    'circle-stroke-color': '#000',
-                    'circle-stroke-width': 1,
-                    'circle-opacity': 0.9
+                    'circle-stroke-color': [
+                        'case',
+                        ['boolean', ['get', 'isOpportunity'], false],
+                        '#16a34a', // Darker green stroke
+                        '#334155'
+                    ],
+                    'circle-stroke-width': 2,
+                    'circle-opacity': 0.9,
+                    'circle-pitch-alignment': 'map', // Map-aligned for true 3D placement
+                    'circle-pitch-scale': 'map'
                 }
             });
 
-            map.current?.addSource('transloaders', {
-                type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] }
-            });
             map.current?.addLayer({
-                id: 'transloader-layer',
+                id: 'corn-point-pulse',
                 type: 'circle',
-                source: 'transloaders',
-                minzoom: 3,
+                source: 'corn-heat',
+                filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'isOpportunity'], true]],
+                minzoom: 4,
                 paint: {
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 2, 10, 5],
-                    'circle-color': '#a855f7',
-                    'circle-opacity': 0.7
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 8, 10, 15],
+                    'circle-color': '#22c55e', // Neon green pulse
+                    'circle-opacity': 0.1, // Animated via setPaintProperty
+                    'circle-pitch-alignment': 'map',
+                    'circle-pitch-scale': 'map'
                 }
-            });
+            }, 'corn-point-layer'); // Place exactly below the main point
+
+            // Fetch and styled BNSF Transloaders
+            fetch('/data/bnsf-transloaders.geojson')
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    if (!map.current || !data) return;
+                    map.current.addSource('transloaders', {
+                        type: 'geojson',
+                        data: data
+                    });
+
+                    map.current.addLayer({
+                        id: 'transloader-layer',
+                        type: 'circle',
+                        source: 'transloaders',
+                        minzoom: 3,
+                        paint: {
+                            'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 4, 10, 8],
+                            'circle-color': '#a855f7', // Neon Purple
+                            'circle-stroke-color': '#7e22ce', // Darker Purple
+                            'circle-stroke-width': 2,
+                            'circle-opacity': 0.9,
+                            'circle-pitch-alignment': 'map',
+                            'circle-pitch-scale': 'map'
+                        }
+                    });
+
+                    // Add a pulsing glow layer for transloaders below the main dot
+                    map.current.addLayer({
+                        id: 'transloader-pulse',
+                        type: 'circle',
+                        source: 'transloaders',
+                        minzoom: 3,
+                        paint: {
+                            'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 8, 10, 16],
+                            'circle-color': '#a855f7',
+                            'circle-opacity': 0.1, // Animated below
+                            'circle-pitch-alignment': 'map',
+                            'circle-pitch-scale': 'map'
+                        }
+                    }, 'transloader-layer');
+                })
+                .catch(console.error);
 
 
             // Events
@@ -357,6 +515,44 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
+            // Cluster Click Handler
+            map.current?.on('click', 'clusters', (e) => {
+                const features = map.current?.queryRenderedFeatures(e.point, {
+                    layers: ['clusters']
+                });
+                const clusterId = features?.[0].properties?.cluster_id;
+                const source = map.current?.getSource('corn-heat') as mapboxgl.GeoJSONSource;
+
+                if (clusterId && source) {
+                    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+                        if (err || !map.current) return;
+
+                        const geom = features[0].geometry;
+                        if (geom.type === 'Point') {
+                            map.current.easeTo({
+                                center: geom.coordinates as [number, number],
+                                zoom: zoom ?? undefined
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Cluster Hover Cursors
+            map.current?.on('mouseenter', 'clusters', () => {
+                if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+            });
+            map.current?.on('mouseleave', 'clusters', () => {
+                if (map.current) map.current.getCanvas().style.cursor = '';
+            });
+
+            map.current?.on('mouseenter', 'corn-point-layer', () => {
+                if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+            });
+            map.current?.on('mouseleave', 'corn-point-layer', () => {
+                if (map.current) map.current.getCanvas().style.cursor = '';
+            });
+
             // Targeted Animation Loop (State Pulse & Rail Flow)
             let t = 0;
             let dashOffset = 0;
@@ -366,13 +562,24 @@ export const CornMap: React.FC<CornMapProps> = ({
                 dashOffset -= 0.2; // Flow speed
 
                 // 1. Organic "Breathing" for States
-                // Use a combination of sine waves for a less mechanical feel
                 const intensity = (Math.sin(t) + 1) / 2;
-                const breath = 0.2 + (intensity * 0.5); // Range 0.2 -> 0.7
+                const breath = 0.2 + (intensity * 0.6); // Range 0.2 -> 0.8
 
                 if (map.current?.getLayer('state-border-highlight')) {
                     map.current.setPaintProperty('state-border-highlight', 'line-opacity', breath);
-                    map.current.setPaintProperty('state-border-highlight', 'line-blur', 1 + (intensity * 2)); // Subtle blur pulse
+                    map.current.setPaintProperty('state-border-highlight', 'line-blur', 1 + (intensity * 3));
+                }
+
+                // Small targeted pulse for Potential Buyers
+                if (map.current?.getLayer('corn-point-pulse')) {
+                    const buyerPulse = 0.1 + (intensity * 0.4); // 0.1 -> 0.5 opacity
+                    map.current.setPaintProperty('corn-point-pulse', 'circle-opacity', buyerPulse);
+                }
+
+                // Pulse for BNSF Transloaders
+                if (map.current?.getLayer('transloader-pulse')) {
+                    const transPulse = 0.05 + (intensity * 0.35); // 0.05 -> 0.4 opacity
+                    map.current.setPaintProperty('transloader-pulse', 'circle-opacity', transPulse);
                 }
 
                 // 2. Rail Flow Animation (Pulse)
@@ -400,6 +607,7 @@ export const CornMap: React.FC<CornMapProps> = ({
 
         setVisibility('corn-heat-layer', showHeatmap);
         setVisibility('corn-point-layer', showHeatmap);
+        setVisibility('corn-point-pulse', showHeatmap);
 
         // Toggle all rail-related layers (premium + fallback)
         ['rail-layer', 'rail-glow', 'rail-core', 'rail-flow'].forEach(layer => {
@@ -407,6 +615,7 @@ export const CornMap: React.FC<CornMapProps> = ({
         });
 
         setVisibility('transloader-layer', !!showTransloaders);
+        setVisibility('transloader-pulse', !!showTransloaders);
         // state-glow-layer logic if needed, or always valid
         if (map.current.getLayer('state-border')) {
             map.current.setLayoutProperty('state-border', 'visibility', 'visible');
@@ -427,13 +636,48 @@ export const CornMap: React.FC<CornMapProps> = ({
             if (map.current.getLayer('state-border-highlight')) {
                 map.current.setFilter('state-border-highlight', ['in', 'STATE_NAME', ...topStateNames]);
             }
+            if (map.current.getLayer('state-fill-highlight')) {
+                map.current.setFilter('state-fill-highlight', ['in', 'STATE_NAME', ...topStateNames]);
+            }
         } else {
             if (map.current.getLayer('state-border-highlight')) {
                 map.current.setFilter('state-border-highlight', ['in', 'STATE_NAME', '']); // Hide all
             }
+            if (map.current.getLayer('state-fill-highlight')) {
+                map.current.setFilter('state-fill-highlight', ['in', 'STATE_NAME', '']); // Hide all
+            }
         }
 
     }, [topStates, styleLoaded]);
+
+    // Auto-focus the top 3 opportunity states when the ranking changes.
+    useEffect(() => {
+        if (!map.current || !styleLoaded || topStates.length === 0 || zoomedState) return;
+
+        const centers = topStates
+            .map((stateCode) => STATE_CENTERS[stateCode])
+            .filter(Boolean) as [number, number][];
+
+        if (centers.length === 0) return;
+
+        const focusKey = [...topStates].sort().join(',');
+        if (lastAutoFocusKey.current === focusKey) return;
+        lastAutoFocusKey.current = focusKey;
+
+        if (centers.length === 1) {
+            map.current.flyTo({ center: centers[0], zoom: 5.5, essential: true });
+            return;
+        }
+
+        const bounds = new mapboxgl.LngLatBounds();
+        centers.forEach(([lng, lat]) => bounds.extend([lng, lat]));
+        map.current.fitBounds(bounds, {
+            padding: 80,
+            maxZoom: 5.5,
+            duration: 1200,
+            essential: true
+        });
+    }, [topStates, styleLoaded, zoomedState]);
 
     // Update State Colors Effect (Fill Layer)
     useEffect(() => {
@@ -442,9 +686,11 @@ export const CornMap: React.FC<CornMapProps> = ({
         const expression: any[] = ['match', ['get', 'STATE_NAME']];
         const opacityExpression: any[] = ['match', ['get', 'STATE_NAME']];
 
+        let hasData = false;
         Object.entries(stateMetrics).forEach(([code, data]) => {
             const name = Object.keys(STATE_NAME_TO_CODE).find(key => STATE_NAME_TO_CODE[key] === code);
             if (name) {
+                hasData = true;
                 if (data.isHot) {
                     expression.push(name, '#06b6d4'); // Cyan for data presence
                     opacityExpression.push(name, 0.4);
@@ -459,8 +705,8 @@ export const CornMap: React.FC<CornMapProps> = ({
         opacityExpression.push(0);
 
         if (map.current.getLayer('state-fill')) {
-            map.current.setPaintProperty('state-fill', 'fill-color', expression as any);
-            map.current.setPaintProperty('state-fill', 'fill-opacity', opacityExpression as any);
+            map.current.setPaintProperty('state-fill', 'fill-color', hasData ? expression : '#000000' as any);
+            map.current.setPaintProperty('state-fill', 'fill-opacity', hasData ? opacityExpression : 0 as any);
         }
 
     }, [stateMetrics, styleLoaded]);
@@ -476,8 +722,8 @@ export const CornMap: React.FC<CornMapProps> = ({
                 features = buyers.map(b => ({
                     type: 'Feature',
                     properties: {
-                        weight: b.basis * 10,
-                        isOpportunity: b.basis > 0.2 || (b.netPrice || 0) > 4.5,
+                        weight: (b.basis ?? 0) * 10,
+                        isOpportunity: (b.basis ?? 0) > 0.2 || (b.netPrice || 0) > 4.5,
                         ...b
                     },
                     geometry: { type: 'Point', coordinates: [b.lng, b.lat] }

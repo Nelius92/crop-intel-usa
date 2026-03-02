@@ -15,12 +15,13 @@ export interface MarketData {
 }
 
 
-// Fallback values based on current market (updated Feb 17, 2026)
+// Fallback values based on current market (updated Feb 27, 2026)
+// CME ZCH6 (Mar '26) = 435'4 = $4.354 — rounded to nearest cent
 const MARKET_DEFAULTS = {
     'Yellow Corn': {
-        price: 4.30,
+        price: 4.35,
         contract: "ZCH6 (Mar '26)",
-        hankinsonBasis: -0.47
+        hankinsonBasis: -0.54   // Hankinson actual ~Feb 27, 2026 → ~$3.81 cash
     },
     'White Corn': {
         price: 4.60,

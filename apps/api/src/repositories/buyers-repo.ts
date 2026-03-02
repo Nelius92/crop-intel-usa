@@ -42,6 +42,11 @@ export interface BuyerApiRecord {
     contactLastCheckedAt: string | null;
     buyerUpdatedAt: string;
     contactUpdatedAt: string | null;
+    // Real scraped bid data (populated by bid-pipeline)
+    cashBid: number | null;
+    postedBasis: number | null;
+    bidDate: string | null;
+    bidSource: string | null;
 }
 
 interface BuyerRow extends QueryResultRow {
@@ -71,6 +76,10 @@ interface BuyerRow extends QueryResultRow {
     buyerUpdatedAt: Date;
     contactUpdatedAt: Date | null;
     contactId: string | null;
+    cashBid: number | null;
+    postedBasis: number | null;
+    bidDate: string | null;
+    bidSource: string | null;
 }
 
 interface DirectoryUpdatedRow extends QueryResultRow {
@@ -88,6 +97,10 @@ function mapBuyerRow(row: BuyerRow): BuyerApiRecord {
         contactLastCheckedAt: row.contactLastCheckedAt?.toISOString() ?? null,
         buyerUpdatedAt: row.buyerUpdatedAt.toISOString(),
         contactUpdatedAt: row.contactUpdatedAt?.toISOString() ?? null,
+        cashBid: row.cashBid ?? null,
+        postedBasis: row.postedBasis ?? null,
+        bidDate: row.bidDate ?? null,
+        bidSource: row.bidSource ?? null,
     };
 }
 
@@ -162,7 +175,12 @@ const BUYER_SELECT = `
         bc.confidence_score AS "contactConfidenceScore",
         bc.verified_at AS "contactVerifiedAt",
         bc.last_checked_at AS "contactLastCheckedAt",
-        bc.updated_at AS "contactUpdatedAt"
+        bc.updated_at AS "contactUpdatedAt",
+        -- Real scraped bid data from bid-pipeline (may be NULL if not yet scraped)
+        b.cash_bid AS "cashBid",
+        b.posted_basis AS "postedBasis",
+        b.bid_date AS "bidDate",
+        b.bid_source AS "bidSource"
     FROM buyers b
     LEFT JOIN buyer_contacts bc ON bc.buyer_id = b.id
 `;

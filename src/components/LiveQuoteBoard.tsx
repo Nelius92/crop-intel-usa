@@ -66,10 +66,14 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
                             {/* Bid (Basis) */}
                             <div className="bg-black/30 rounded p-2 border border-white/5">
                                 <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Basis (Bid)</div>
-                                <div className={`text-xl font-mono font-bold flex items-center ${buyer.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
-                                    {buyer.basis >= 0 ? <ArrowUpRight size={14} className="ml-1 opacity-50" /> : <ArrowDownRight size={14} className="ml-1 opacity-50" />}
-                                </div>
+                                {buyer.basis !== undefined ? (
+                                    <div className={`text-xl font-mono font-bold flex items-center ${buyer.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                        {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
+                                        {buyer.basis >= 0 ? <ArrowUpRight size={14} className="ml-1 opacity-50" /> : <ArrowDownRight size={14} className="ml-1 opacity-50" />}
+                                    </div>
+                                ) : (
+                                    <div className="text-xl font-mono font-bold text-slate-600 tracking-wider">NO BID</div>
+                                )}
                             </div>
 
                             {/* Ask (Cash) - Conceptual mapping for visual balance */}

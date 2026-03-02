@@ -1,12 +1,86 @@
 import React, { useEffect, useState } from 'react';
 import { CornMap } from '../components/CornMap';
 import { MarketIntelPanel } from '../components/MarketIntelPanel';
-import { geminiService } from '../services/gemini';
-
 import { fetchTransloaders } from '../services/transloaderService';
-import { calculateFreight } from '../services/railService';
 import { CropType, HeatmapPoint, Buyer, Transloader } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
+import { fetchRealBuyersFromGoogle } from '../services/buyersService';
+import { fetchMorningRecommendationBuyers } from '../services/morningRecommendationsService';
+
+const PRIMARY_CORRIDOR_STATES = new Set([
+    'ND', 'MN', 'SD', 'IA', 'NE', 'KS',
+    'TX', 'WA', 'OR', 'CA', 'OK', 'MO'
+]);
+
+function rankTopStatesByCashBid(buyers: Buyer[]): string[] {
+    const byState = new Map<string, Buyer[]>();
+    for (const buyer of buyers) {
+        if (!byState.has(buyer.state)) byState.set(buyer.state, []);
+        byState.get(buyer.state)!.push(buyer);
+    }
+
+    const rankedStates = Array.from(byState.entries())
+        .map(([state, stateBuyers]) => {
+            const sortedByCash = [...stateBuyers].sort((a, b) => (b.cashPrice || 0) - (a.cashPrice || 0));
+            const topCashSlice = sortedByCash.slice(0, 3);
+            const avgTopCash = topCashSlice.reduce((sum, b) => sum + (b.cashPrice || 0), 0) / Math.max(topCashSlice.length, 1);
+            const avgTopNet = topCashSlice.reduce((sum, b) => sum + (b.netPrice || 0), 0) / Math.max(topCashSlice.length, 1);
+            const avgRailConfidence = stateBuyers.reduce((sum, b) => sum + (b.railConfidence || 0), 0) / Math.max(stateBuyers.length, 1);
+
+            return {
+                state,
+                avgTopCash,
+                avgTopNet,
+                avgRailConfidence,
+                count: stateBuyers.length
+            };
+        })
+        .sort((a, b) =>
+            (b.avgTopCash - a.avgTopCash) ||
+            (b.avgTopNet - a.avgTopNet) ||
+            (b.avgRailConfidence - a.avgRailConfidence) ||
+            (b.count - a.count)
+        );
+
+    return rankedStates.slice(0, 3).map((entry) => entry.state);
+}
+
+function buildHeatmapFromBuyers(buyers: Buyer[]): HeatmapPoint[] {
+    return buyers
+        .filter((buyer) => Number.isFinite(buyer.lat) && Number.isFinite(buyer.lng))
+        .sort((a, b) => (b.cashPrice || 0) - (a.cashPrice || 0))
+        .slice(0, 80)
+        .map((buyer) => ({
+            id: `buyer-heat-${buyer.id}`,
+            lat: buyer.lat,
+            lng: buyer.lng,
+            cornPrice: Number((buyer.cashPrice || 0).toFixed(2)),
+            basis: Number((buyer.basis || 0).toFixed(2)),
+            change24h: 0,
+            isOpportunity:
+                (buyer.netPrice || 0) >= 4.75 ||
+                (buyer.cashPrice || 0) >= 5.0 ||
+                (buyer.railConfidence || 0) >= 70,
+            regionName: `${buyer.city}, ${buyer.state}`,
+            marketLabel: `${buyer.name} · ${buyer.type} · ${buyer.railConfidence || 0}% rail`
+        }));
+}
+
+function selectBnsfPriorityBuyers(allBuyers: Buyer[]): Buyer[] {
+    const corridorBuyers = allBuyers.filter((buyer) => PRIMARY_CORRIDOR_STATES.has(buyer.state));
+    const railCandidates = corridorBuyers.filter((buyer) => (buyer.railConfidence || 0) >= 40 || buyer.railAccessible);
+    const strongBnsf = railCandidates.filter((buyer) => (buyer.railConfidence || 0) >= 70);
+    return strongBnsf.length > 0 ? strongBnsf : railCandidates;
+}
+
+function sortBestBnsfBuyers(buyers: Buyer[]): Buyer[] {
+    return [...buyers].sort((a, b) =>
+        ((b.netPrice || 0) - (a.netPrice || 0)) ||
+        ((b.cashPrice || 0) - (a.cashPrice || 0)) ||
+        ((b.railConfidence || 0) - (a.railConfidence || 0)) ||
+        ((b.basis ?? 0) - (a.basis ?? 0))
+    );
+}
 
 interface HeatMapPageProps {
     selectedCrop: CropType;
@@ -19,52 +93,48 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [topStates, setTopStates] = useState<string[]>([]);
 
-    const fetchData = async () => {
+    const fetchData = async (forceRefresh: boolean = false) => {
         setLoading(true);
         setError(null);
         try {
-            // 1. Fetch Heatmap Data (for the map) - Pass selectedCrop
-            const heatData = await geminiService.getLiveHeatmapData(selectedCrop);
-            setHeatmapData(heatData);
-
-            // 2. Fetch Transloaders (Keep static for now, or filter if we had crop types)
+            // 1. Load static transloader network reference
             const transloaderData = await fetchTransloaders();
             setTransloaders(transloaderData);
 
-            // 3. Fetch Buyers (for the Top 3 Widget) - Pass selectedCrop
-            // Get Oracle Truths first
-            const oracleData = await geminiService.getMarketOracle(selectedCrop);
-
-            // Use Gemini for Live Buyer Data (Dynamic per crop)
-            const liveBuyers = await geminiService.getLiveBuyerData(selectedCrop);
-
-            if (liveBuyers.length > 0) {
-                // Enrich with Oracle Data
-                const enrichedData = await geminiService.enrichBuyersWithMarketData(liveBuyers, oracleData, selectedCrop);
-
-                // Calculate Freight & Net Price
-                // Freight calculation might need name/lat/lng
-                const buyersWithFreight = await Promise.all(enrichedData.map(async (buyer) => {
-                    const freight = await calculateFreight({ lat: buyer.lat, lng: buyer.lng, state: buyer.state, city: buyer.city }, buyer.name);
-                    const netPrice = (buyer.cashPrice || 0) - freight.ratePerBushel;
-                    return {
-                        ...buyer,
-                        freightCost: parseFloat((-freight.ratePerBushel).toFixed(2)),
-                        netPrice: parseFloat(netPrice.toFixed(2)),
-                    };
-                }));
-
-                // Sort by Basis descending
-                const sortedBuyers = buyersWithFreight.sort((a, b) => b.basis - a.basis);
-                setBuyers(sortedBuyers);
+            // 2. Prefer the persisted morning call list (Python ranker + optional web/PDF scraping).
+            // If unavailable, fall back to live USDA/BNSF deterministic ranking in the browser.
+            const morningRecommendations = await fetchMorningRecommendationBuyers(selectedCrop);
+            if (morningRecommendations && morningRecommendations.buyers.length > 0) {
+                setTopStates(morningRecommendations.topStates);
+                setBuyers(sortBestBnsfBuyers(morningRecommendations.buyers).slice(0, 30));
+                setHeatmapData(buildHeatmapFromBuyers(morningRecommendations.buyers));
+                setLastUpdated(new Date(morningRecommendations.runEndedAt ?? morningRecommendations.runStartedAt));
+                return;
             }
+
+            // 3. USDA-first + BNSF refinement fallback:
+            // `fetchRealBuyersFromGoogle` computes cash/net pricing using futures + USDA regional basis + freight.
+            const pricedBuyers = await fetchRealBuyersFromGoogle(selectedCrop, undefined, forceRefresh);
+
+            const bnsfPriorityBuyers = selectBnsfPriorityBuyers(pricedBuyers);
+            const rankingPool = bnsfPriorityBuyers.length > 0 ? bnsfPriorityBuyers : pricedBuyers;
+            const rankedStates = rankTopStatesByCashBid(rankingPool);
+            const refinedTopStateBuyers = sortBestBnsfBuyers(
+                (bnsfPriorityBuyers.length > 0 ? bnsfPriorityBuyers : pricedBuyers)
+                    .filter((buyer) => rankedStates.includes(buyer.state))
+            );
+
+            setTopStates(rankedStates);
+            setBuyers(refinedTopStateBuyers.slice(0, 30));
+            setHeatmapData(buildHeatmapFromBuyers(rankingPool));
 
             setLastUpdated(new Date());
 
         } catch (err) {
-            console.error(err);
-            setError("Connection failed.");
+            console.error('USDA/BNSF heatmap fetch failed:', err);
+            setError("USDA/BNSF market load failed.");
         } finally {
             setLoading(false);
         }
@@ -77,40 +147,17 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
         return () => clearInterval(interval);
     }, [selectedCrop]);
 
-    // Calculate Top 3 States for "Glow" effect
-    const [topStates, setTopStates] = useState<string[]>([]);
-
-    useEffect(() => {
-        if (buyers.length === 0) return;
-
-        // Group by state and calc avg net price
-        const stateStats: Record<string, { total: number, count: number }> = {};
-        buyers.forEach(b => {
-            if (!stateStats[b.state]) stateStats[b.state] = { total: 0, count: 0 };
-            stateStats[b.state].total += (b.netPrice || 0);
-            stateStats[b.state].count++;
-        });
-
-        const stateAvgs = Object.entries(stateStats).map(([state, stats]) => ({
-            state,
-            avg: stats.total / stats.count
-        }));
-
-        // Sort desc
-        const top3 = stateAvgs.sort((a, b) => b.avg - a.avg).slice(0, 3).map(s => s.state);
-        setTopStates(top3);
-    }, [buyers]);
-
     return (
         <div className="w-full h-full relative">
             <CornMap
                 showHeatmap={true}
-                showBuyers={false}
+                showBuyers={true}
                 showRail={true}
                 showTransloaders={true}
                 view="usa"
                 theme="green-glow"
                 heatmapData={heatmapData}
+                buyers={buyers}
                 transloaders={transloaders}
                 hoveredRegionId={null}
                 topStates={topStates}
@@ -122,7 +169,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
                     National <span className="text-green-400">Price Heatmap</span>
                 </h2>
                 <p className="text-slate-300 text-xs sm:text-sm drop-shadow-md max-w-md mt-1">
-                    Live market intelligence.
+                    USDA-first cash bid ranking, then top 3 BNSF corridor states and best rail-served buyers.
                 </p>
                 {lastUpdated && (
                     <p className="text-slate-500 text-[10px] sm:text-xs mt-1">
@@ -141,7 +188,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
 
             {/* Refresh Button */}
             <button
-                onClick={fetchData}
+                onClick={() => fetchData(true)}
                 disabled={loading}
                 className="absolute top-16 sm:top-20 right-4 sm:right-6 lg:right-96 lg:mr-4 p-2.5 bg-[#120202]/60 backdrop-blur-xl rounded-full border border-white/10 text-corn-accent shadow-glass hover:shadow-glow hover:bg-corn-accent/10 transition-all active:scale-95 disabled:opacity-50 pointer-events-auto z-20"
                 title="Refresh Live Data"

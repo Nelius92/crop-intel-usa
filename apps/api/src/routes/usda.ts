@@ -3,16 +3,23 @@ import { logger } from '../logger.js';
 
 export const usdaRouter = Router();
 
+function errorMeta(error: unknown) {
+    if (error instanceof Error) {
+        return { error: error.message, stack: error.stack };
+    }
+    return { error: String(error) };
+}
+
 // Proxy for USDA AMS Market News API to avoid CORS issues in browser
 usdaRouter.get('/grain-report', async (req, res) => {
     try {
-        const { commodity = 'Corn' } = req.query;
+        const commodity = String(req.query.commodity ?? 'Corn');
 
         logger.info('Fetching USDA grain report', { commodity });
 
         // Fetch from USDA AMS Market News API
         const response = await fetch(
-            `https://marsapi.ams.usda.gov/services/v1.2/reports/LM_GR110?q=commodity=${commodity}`,
+            `https://marsapi.ams.usda.gov/services/v1.2/reports/LM_GR110?q=commodity=${encodeURIComponent(commodity)}`,
             {
                 headers: {
                     'Accept': 'application/json'
@@ -29,15 +36,19 @@ usdaRouter.get('/grain-report', async (req, res) => {
 
         res.json({
             success: true,
+            degraded: false,
+            source: 'usda-ams',
             data: data,
             fetchedAt: new Date().toISOString()
         });
     } catch (error) {
-        logger.error('USDA API proxy error', { error });
+        logger.error('USDA API proxy error', errorMeta(error));
 
         // Return fallback data on error
         res.json({
             success: false,
+            degraded: true,
+            source: 'fallback',
             error: 'Failed to fetch from USDA API',
             fallback: true,
             data: {
@@ -75,6 +86,7 @@ usdaRouter.get('/futures-price', async (_req, res) => {
                     futuresPrice: parseFloat(cornData.price),
                     contract: "ZCH6 (Mar '26)",
                     source: 'usda-gtr',
+                    degraded: false,
                     fetchedAt: new Date().toISOString()
                 });
             }
@@ -86,15 +98,17 @@ usdaRouter.get('/futures-price', async (_req, res) => {
             futuresPrice: 4.30,
             contract: "ZCH6 (Mar '26)",
             source: 'fallback',
+            degraded: true,
             fetchedAt: new Date().toISOString()
         });
     } catch (error) {
-        logger.error('Futures price fetch error', { error });
+        logger.error('Futures price fetch error', errorMeta(error));
         res.json({
             success: true,
             futuresPrice: 4.30,
             contract: "ZCH6 (Mar '26)",
             source: 'fallback',
+            degraded: true,
             fetchedAt: new Date().toISOString()
         });
     }

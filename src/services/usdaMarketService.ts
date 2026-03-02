@@ -3,6 +3,7 @@
 // API Documentation: https://marsapi.ams.usda.gov/
 
 import { cacheService, CACHE_TTL } from './cacheService';
+import { apiGetJson } from './apiClient';
 
 const USDA_CACHE_KEY = 'adjustments';
 
@@ -25,75 +26,169 @@ export interface USDAGrainBid {
 }
 
 
-// Fallback data based on latest known USDA reports (Feb 2026)
+// Fallback basis data — used ONLY when no real scraped bid exists.
+// Based on actual market data as of Feb 27, 2026 (CME ZCH6 = $4.354).
+// Real scraped bids always take priority over these estimates.
+//
+// Sources: Scoular portal (114 bids), web search (CHS/Plains ND), USDA AMS.
 const FALLBACK_ADJUSTMENTS: Record<string, RegionalAdjustment> = {
+    // ── Northern Plains (ND/MN/SD) ──────────────────────────────────────────
+    "Northern Plains": {
+        region: "Northern Plains",
+        basisAdjustment: -0.65,  // Verified: ND -0.60 to -0.85, CHS/Plains Feb 2026
+        trend: 'DOWN',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── Corn Belt core (IA/IL/IN/OH) ─────────────────────────────────────────
+    "Corn Belt": {
+        region: "Corn Belt",
+        basisAdjustment: -0.25,  // Strong ethanol/feed demand lifts basis vs ND
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── Central Plains (NE/KS/MO) ────────────────────────────────────────────
+    "Central Plains": {
+        region: "Central Plains",
+        basisAdjustment: -0.30,  // Verified via Scoular KS avg spot ~-0.30
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── Southern Plains / feedlots (OK/CO) ───────────────────────────────────
+    "Southern Plains": {
+        region: "Southern Plains",
+        basisAdjustment: -0.20,  // Feedlot demand: firmer than ND
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── Texas / Gulf ────────────────────────────────────────────────────────
     "Texas": {
         region: "Texas",
-        basisAdjustment: 0.85,
+        basisAdjustment: -0.15,  // West TX feedlots pay modest premium vs CBOT
         trend: 'FLAT',
-        reportDate: "2026-02-01",
+        reportDate: "2026-02-27",
         source: 'fallback'
     },
-    "Washington": {
-        region: "Washington",
-        basisAdjustment: 1.10,
-        trend: 'UP',
-        reportDate: "2026-02-01",
-        source: 'fallback'
-    },
-    "California": {
-        region: "California",
-        basisAdjustment: 1.45,
+    // ── Southeast (TN/AR/AL/GA/MS/LA/NC/SC/FL) ───────────────────────────────
+    "Southeast": {
+        region: "Southeast",
+        basisAdjustment: 0.05,   // Poultry/livestock demand, transport premium
         trend: 'FLAT',
-        reportDate: "2026-02-01",
+        reportDate: "2026-02-27",
         source: 'fallback'
     },
-    "Midwest": {
-        region: "Midwest",
-        basisAdjustment: -0.25,
-        trend: 'DOWN',
-        reportDate: "2026-02-01",
-        source: 'fallback'
-    },
-    "Idaho": {
-        region: "Idaho",
-        basisAdjustment: 0.95,
+    // ── Great Lakes / Wisconsin ───────────────────────────────────────────────
+    "Great Lakes": {
+        region: "Great Lakes",
+        basisAdjustment: -0.35,  // WI/MI dairy demand, slight discount vs IL
         trend: 'FLAT',
-        reportDate: "2026-02-01",
+        reportDate: "2026-02-27",
         source: 'fallback'
     },
+    // ── Pacific Northwest (OR/WA export terminals) ────────────────────────────
     "PNW": {
         region: "PNW",
-        basisAdjustment: 1.15,
-        trend: 'UP',
-        reportDate: "2026-02-01",
+        basisAdjustment: 0.25,   // Export premium at Columbia River terminals
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── California (feedmills/dairies) ────────────────────────────────────────
+    "California": {
+        region: "California",
+        basisAdjustment: 0.50,   // Transport cost premium; feedmill/dairy demand
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── Mountain West (ID/MT/WY/UT/NV/AZ/NM) ────────────────────────────────
+    "Mountain West": {
+        region: "Mountain West",
+        basisAdjustment: -0.55,  // Remote; high freight, weaker basis than Corn Belt
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
+        source: 'fallback'
+    },
+    // ── Mid-Atlantic / Northeast (VA/PA/NY/MD/DE/NJ/CT/MA/RI/VT/NH/ME) ───────
+    "Mid-Atlantic": {
+        region: "Mid-Atlantic",
+        basisAdjustment: 0.10,   // Poultry corridor premium along I-81
+        trend: 'FLAT',
+        reportDate: "2026-02-27",
         source: 'fallback'
     }
 };
 
-// Map states to regions for basis lookup
+// Map every US state to its regional pricing group
 const STATE_TO_REGION: Record<string, string> = {
+    // Northern Plains
+    'ND': 'Northern Plains',
+    'MN': 'Northern Plains',
+    'SD': 'Northern Plains',
+    // Corn Belt
+    'IA': 'Corn Belt',
+    'IL': 'Corn Belt',
+    'IN': 'Corn Belt',
+    'OH': 'Corn Belt',
+    // Central Plains
+    'NE': 'Central Plains',
+    'KS': 'Central Plains',
+    'MO': 'Central Plains',
+    // Southern Plains
+    'CO': 'Southern Plains',
+    'OK': 'Southern Plains',
+    // Texas
     'TX': 'Texas',
-    'CA': 'California',
-    'WA': 'Washington',
+    // Southeast
+    'TN': 'Southeast',
+    'AR': 'Southeast',
+    'AL': 'Southeast',
+    'GA': 'Southeast',
+    'MS': 'Southeast',
+    'LA': 'Southeast',
+    'NC': 'Southeast',
+    'SC': 'Southeast',
+    'FL': 'Southeast',
+    'KY': 'Southeast',
+    // Great Lakes
+    'WI': 'Great Lakes',
+    'MI': 'Great Lakes',
+    // PNW
+    'WA': 'PNW',
     'OR': 'PNW',
-    'ID': 'Idaho',
-    'IA': 'Midwest',
-    'IL': 'Midwest',
-    'NE': 'Midwest',
-    'MN': 'Midwest',
-    'SD': 'Midwest',
-    'ND': 'Midwest',
-    'KS': 'Midwest',
-    'MO': 'Midwest',
-    'OH': 'Midwest',
-    'IN': 'Midwest'
+    // California
+    'CA': 'California',
+    // Mountain West
+    'ID': 'Mountain West',
+    'MT': 'Mountain West',
+    'WY': 'Mountain West',
+    'UT': 'Mountain West',
+    'NV': 'Mountain West',
+    'AZ': 'Mountain West',
+    'NM': 'Mountain West',
+    // Mid-Atlantic / Northeast
+    'VA': 'Mid-Atlantic',
+    'PA': 'Mid-Atlantic',
+    'MD': 'Mid-Atlantic',
+    'DE': 'Mid-Atlantic',
+    'WV': 'Mid-Atlantic',
+    'NY': 'Mid-Atlantic',
+    'NJ': 'Mid-Atlantic',
+    'CT': 'Mid-Atlantic',
+    'MA': 'Mid-Atlantic',
+    'RI': 'Mid-Atlantic',
+    'VT': 'Mid-Atlantic',
+    'NH': 'Mid-Atlantic',
+    'ME': 'Mid-Atlantic',
 };
 
 export const usdaMarketService = {
     // Get regional adjustment for a specific state
     getRegionForState: (state: string): string => {
-        return STATE_TO_REGION[state] || 'Midwest';
+        return STATE_TO_REGION[state] || 'Central Plains'; // sensible default
     },
 
     // Fetch latest regional adjustments from USDA AMS
@@ -103,26 +198,22 @@ export const usdaMarketService = {
         if (cached) return cached;
 
         try {
-            // Try USDA AMS Market News API
-            const response = await fetch(
-                'https://marsapi.ams.usda.gov/services/v1.2/reports/LM_GR110?q=commodity=Corn',
-                {
-                    signal: AbortSignal.timeout(8000),
-                    headers: { 'Accept': 'application/json' }
-                }
-            );
+            const response = await apiGetJson<{
+                success: boolean;
+                data?: any;
+                fallback?: boolean;
+            }>('/api/usda/grain-report?commodity=Corn');
 
-            if (response.ok) {
-                const data = await response.json();
-                const parsedAdjustments = parseUSDAReport(data);
+            if (response.data) {
+                const parsedAdjustments = parseUSDAReport(response.data);
                 if (Object.keys(parsedAdjustments).length > 0) {
                     cacheService.set('usda', USDA_CACHE_KEY, parsedAdjustments, CACHE_TTL.USDA_MS);
-                    console.log('Loaded fresh USDA market data');
+                    console.log('Loaded USDA market data via API proxy');
                     return parsedAdjustments;
                 }
             }
         } catch (error) {
-            console.warn('USDA AMS API unavailable, using fallback:', error);
+            console.warn('USDA API proxy unavailable, using fallback:', error);
         }
 
         // Use fallback data
@@ -177,10 +268,16 @@ function parseUSDAReport(data: any): Record<string, RegionalAdjustment> {
             const state = item.state || item.location_state;
             const region = STATE_TO_REGION[state];
             if (region && item.basis !== undefined) {
-                // Parse basis (usually in cents, convert to dollars)
-                const basisValue = typeof item.basis === 'string'
-                    ? parseFloat(item.basis) / 100
+                // Parse basis (convert cents to dollars if needed)
+                let basisValue = typeof item.basis === 'string'
+                    ? parseFloat(item.basis)
                     : item.basis;
+
+                // If basis is large (e.g. > 5 or < -5), it is definitely in cents and needs conversion to dollars.
+                // Realistic basis is between -$3.00 and +$3.00. 
+                if (Math.abs(basisValue) >= 5) {
+                    basisValue = basisValue / 100;
+                }
 
                 adjustments[region] = {
                     region,

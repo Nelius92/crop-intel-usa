@@ -5,3 +5,11 @@ dist
 .env
 .env.*
 coverage
+certs
+*.pem
+*.p12
+apps/api/node_modules
+apps/api/dist
+packages/connectors/dist
+logs
+*.log

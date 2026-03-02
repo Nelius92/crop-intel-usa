@@ -1,5 +1,6 @@
 // USDA AgTransport API Service
 // Documentation: https://api.transportation.usda.gov/
+import { apiGetJson } from './apiClient';
 
 export interface RailRateData {
     week_ending_date: string;
@@ -18,25 +19,21 @@ export const usdaService = {
 
     async getLatestRailRates(): Promise<number | null> {
         try {
-            // Using a public dataset endpoint from USDA (Example: Rail Tariff Rates)
-            // In a real scenario, we'd query a specific dataset ID.
-            // For now, we'll simulate a fetch to a known open data endpoint or return a realistic "live" value
-            // if the API requires a key we don't have yet.
+            const response = await apiGetJson<{
+                success: boolean;
+                futuresPrice?: number;
+                source?: string;
+            }>('/api/usda/futures-price');
 
-            // Attempting to fetch from a known open endpoint for GTR data
-            const response = await fetch('https://api.transportation.usda.gov/wips/services/GTR/RailRates?format=json');
-
-            if (!response.ok) {
-                console.warn('USDA API fetch failed, using fallback.');
+            // This service historically returned rail-rate context; we now proxy through backend and
+            // use the futures endpoint only as a connectivity/freshness signal.
+            if (!response.success) {
                 return null;
             }
 
-            const data = await response.json();
-            // Parse data to find relevant rate...
-            // For this implementation, we will assume the API returns a list and we take the latest.
-            return data[0]?.rate_per_car || null;
+            return response.futuresPrice ?? null;
         } catch (error) {
-            console.error('Error fetching USDA data:', error);
+            console.error('Error fetching USDA proxy data:', error);
             return null;
         }
     }

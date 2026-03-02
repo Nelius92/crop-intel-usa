@@ -2,6 +2,41 @@
 
 Crop intel application that helps farmers find the best basis on corn and other grains, enabling them to ship from their closest transloading rail to the best possible buyers.
 
+## Local Web App (Mac Mini / Office LAN)
+
+This repo now supports running Corn Intel as a local web app with:
+- `frontend` (nginx + Vite build)
+- `api` (Express + Postgres-backed buyers/contact directory)
+- `postgres` (local DB)
+
+### First-time local setup (Mac mini)
+
+1. Install Docker Desktop (or Colima) and ensure `docker compose` works.
+2. Add your server-side keys to the API container environment (recommended via compose override or `.env` injection):
+   - `GOOGLE_MAPS_API_KEY` (required for nightly buyer contact sync)
+   - `GEMINI_API_KEY` (optional for AI features; backend fallbacks exist)
+3. Start the stack and seed buyers:
+   ```bash
+   ./scripts/macmini/first-run.sh
+   ```
+4. Open the app from another office computer on the LAN:
+   - `http://<mac-mini-ip>/`
+
+### Ongoing jobs (Mac mini)
+
+- Nightly buyer contact sync: `./scripts/macmini/buyer-sync.sh`
+- Nightly Postgres backup: `./scripts/macmini/pg-backup.sh`
+- `launchd` templates are in `ops/launchd/`
+
+### Docker Compose services
+
+```bash
+docker compose up -d --build
+docker compose logs -f api
+docker compose exec -T api node dist/cli/buyers-seed.js
+docker compose exec -T api node dist/cli/buyers-sync.js --limit 200
+```
+
 ## BNSF Carload Rates API Smoke Test
 
 The `scripts/bnsf_carload_rates_smoke.ts` script provides a standalone utility for testing the BNSF Carload Rates API with mTLS authentication.

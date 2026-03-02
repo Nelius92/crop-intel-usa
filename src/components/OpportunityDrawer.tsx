@@ -57,9 +57,13 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                     {isBuyer(item) ? (
                                         <>
-                                            <DataCard label="Net Price" value={`$${item.netPrice?.toFixed(2) || '-'}`} color="text-green-400" highlight />
-                                            <DataCard label="Cash Bid" value={`$${item.cashPrice.toFixed(2)}`} />
-                                            <DataCard label="Basis" value={`${item.basis > 0 ? '+' : ''}${item.basis.toFixed(2)}`} color={item.basis >= 0 ? 'text-green-400' : 'text-red-400'} />
+                                            <DataCard label="Net Price" value={`$${item.netPrice?.toFixed(2) || '-'}`} color="text-red-400" highlight />
+                                            <DataCard label="Cash Bid" value={item.cashPrice !== undefined ? `$${item.cashPrice.toFixed(2)}` : 'CALL'} />
+                                            {item.basis !== undefined ? (
+                                                <DataCard label="Basis" value={`${item.basis > 0 ? '+' : ''}${item.basis.toFixed(2)}`} color={item.basis >= 0 ? 'text-green-400' : 'text-red-400'} />
+                                            ) : (
+                                                <DataCard label="Basis" value="NO BID" />
+                                            )}
                                             <DataCard label={`Freight (${item.freightMode === 'rail' ? '🚂 Rail' : '🚛 Truck'})`} value={`-$${Math.abs(item.freightCost ?? 0).toFixed(2)}`} color="text-red-400" />
                                             {(() => {
                                                 const level = item.railServedConfidence || (item.railAccessible ? 'likely' : 'unverified');
@@ -81,7 +85,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                                 );
                                             })()}
                                             {item.benchmarkDiff !== undefined ? (
-                                                <DataCard label="vs Hank" value={`${item.benchmarkDiff >= 0 ? '+' : ''}${item.benchmarkDiff.toFixed(2)}`} color={item.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'} />
+                                                <DataCard label="vs Hank" value={`${item.benchmarkDiff >= 0 ? '+' : ''}${item.benchmarkDiff.toFixed(2)}`} color={item.benchmarkDiff >= 0 ? 'text-green-400' : 'text-red-400'} />
                                             ) : (
                                                 <DataCard label="Region" value={item.region} />
                                             )}
@@ -97,7 +101,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                         <>
                                             <DataCard label="Price" value={`$${item.cornPrice?.toFixed(2) || '0.00'}`} highlight />
                                             <DataCard label="Basis" value={`${(item.basis || 0) > 0 ? '+' : ''}${(item.basis || 0).toFixed(2)}`} />
-                                            <DataCard label="24h Change" value={`${(item.change24h || 0) > 0 ? '+' : ''}${item.change24h || 0}%`} color={(item.change24h || 0) > 0 ? 'text-emerald-400' : 'text-red-400'} />
+                                            <DataCard label="24h Change" value={`${(item.change24h || 0) > 0 ? '+' : ''}${item.change24h || 0}%`} color={(item.change24h || 0) > 0 ? 'text-green-400' : 'text-red-400'} />
                                             <DataCard label="Status" value={item.isOpportunity ? 'Hot' : 'Normal'} color={item.isOpportunity ? 'text-white' : 'text-zinc-400'} />
                                         </>
                                     )}
@@ -208,7 +212,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                             icon={<Share2 size={20} />}
                                             label="Share"
                                             onClick={() => {
-                                                navigator.clipboard.writeText(`${item.name}: $${item.cashPrice.toFixed(2)} Cash`);
+                                                navigator.clipboard.writeText(`${item.name}: ${item.cashPrice !== undefined ? '$' + item.cashPrice.toFixed(2) : 'CALL'} Cash`);
                                                 alert('Bid info copied to clipboard!');
                                             }}
                                         />
@@ -266,7 +270,7 @@ const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
             {/* Cash */}
             <div className="flex justify-between items-center text-zinc-200">
                 <span>= Cash</span>
-                <span className="font-bold">${buyer.cashPrice.toFixed(2)}</span>
+                <span className="font-bold">{buyer.cashPrice !== undefined ? `$${buyer.cashPrice.toFixed(2)}` : '--'}</span>
             </div>
             {/* Freight */}
             <CalcRow
@@ -288,7 +292,9 @@ const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
             {/* Net */}
             <div className="flex justify-between items-center">
                 <span className="text-zinc-200 font-bold">= Net Price</span>
-                <span className="text-green-400 font-bold text-base">${buyer.netPrice?.toFixed(2)}</span>
+                <span className="text-red-400 font-bold text-base">
+                    ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value).toFixed(2)}
+                </span>
             </div>
             <div className="text-[10px] text-zinc-500 font-sans">
                 ← What you receive at Campbell, MN
@@ -298,16 +304,17 @@ const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
             {buyer.benchmarkDiff !== undefined && (
                 <div className="mt-3 pt-2.5 border-t border-zinc-800">
                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-zinc-400 font-sans">vs Hankinson</span>
-                        <span className={`font-bold ${buyer.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                            {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
+                        <span className="text-zinc-400 font-sans">vs Hankinson Benchmark</span>
+                        <span className={`font-bold ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value - hankinsonNet) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - hankinsonNet) >= 0 ? '+' : ''}
+                            {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - hankinsonNet).toFixed(2)}
                         </span>
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans mt-1">
-                        Hank Net = Hank Cash − $0.30 truck = ${hankinsonNet.toFixed(2)}
+                        Hank Net = Hank Cash − $0.30 benchmark freight = ${hankinsonNet.toFixed(2)}
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans">
-                        Δ = ${buyer.netPrice?.toFixed(2)} − ${hankinsonNet.toFixed(2)} = {buyer.benchmarkDiff?.toFixed(2)}
+                        Delta = ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value).toFixed(2)} − ${hankinsonNet.toFixed(2)} = {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - hankinsonNet).toFixed(2)}
                     </div>
                 </div>
             )}
@@ -361,21 +368,21 @@ const ActionButton = ({ icon, label, active = false, onClick, disabled = false }
         className={`flex flex-col items-center gap-1.5 sm:gap-1 min-w-[70px] sm:min-w-[60px] group ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
     >
         <div className={`p-3 sm:p-3 rounded-full transition-all duration-300 ${active
-            ? 'bg-cyan-500 text-black shadow-[0_0_15px_rgba(6,182,212,0.5)] scale-110'
+            ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] scale-110'
             : disabled
                 ? 'bg-zinc-800 text-zinc-600'
                 : 'bg-zinc-800 text-zinc-400 group-hover:bg-zinc-700 group-hover:text-white'
             }`}>
             {icon}
         </div>
-        <span className={`text-[10px] font-medium tracking-wide text-center ${active ? 'text-cyan-400' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
+        <span className={`text-[10px] font-medium tracking-wide text-center ${active ? 'text-red-500' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
             {label}
         </span>
     </button>
 );
 
 const DataCard = ({ label, value, icon, color = 'text-white', highlight = false }: any) => (
-    <div className={`p-3 rounded-xl border flex flex-col justify-center ${highlight ? 'bg-zinc-800 border-cyan-500/30' : 'bg-zinc-800/50 border-zinc-800'}`}>
+    <div className={`p-3 rounded-xl border flex flex-col justify-center ${highlight ? 'bg-zinc-800 border-red-500/30' : 'bg-zinc-800/50 border-zinc-800'}`}>
         <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{label}</div>
         <div className={`text-base font-bold ${color} flex items-center gap-1.5`}>
             {icon}

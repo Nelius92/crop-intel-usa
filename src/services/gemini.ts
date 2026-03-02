@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Buyer, HeatmapPoint, MarketOracle, CropType } from '../types';
 import { FALLBACK_HEATMAP_DATA, FALLBACK_BUYERS_DATA } from './fallbackData';
 import { cacheService, CACHE_TTL } from './cacheService';
+import { apiPostJson } from './apiClient';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -14,8 +15,8 @@ const genAI = new GoogleGenerativeAI(API_KEY || '');
 export class GeminiService {
     // Use gemini-2.0-flash-exp for latest features and speed
     private model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
-        // @ts-ignore - googleSearch is valid for gemini-2.0-flash-exp but missing in current SDK types
+        model: 'gemini-2.0-flash',
+        // @ts-expect-error - googleSearch is valid for gemini-2.0-flash but missing in current SDK types
         tools: [{ googleSearch: {} }]
     });
 
@@ -39,6 +40,16 @@ export class GeminiService {
         const cacheKey = `heatmap::${crop}`;
         const cached = cacheService.get<HeatmapPoint[]>('market', cacheKey);
         if (cached) return cached;
+
+        try {
+            const response = await apiPostJson<{ data: HeatmapPoint[] }>('/api/ai/heatmap', { crop });
+            if (Array.isArray(response.data) && response.data.length > 0) {
+                cacheService.set('market', cacheKey, response.data, CACHE_TTL.MARKET_MS);
+                return response.data;
+            }
+        } catch {
+            // Fall through to legacy client-side behavior / fallback.
+        }
 
         // Add timestamp to prompt to ensure fresh generation
         const timestamp = new Date().toISOString();
@@ -97,6 +108,16 @@ export class GeminiService {
         const cacheKey = `live-buyers::${crop}`;
         const cached = cacheService.get<Buyer[]>('market', cacheKey);
         if (cached) return cached;
+
+        try {
+            const response = await apiPostJson<{ data: Buyer[] }>('/api/ai/buyers', { crop });
+            if (Array.isArray(response.data) && response.data.length > 0) {
+                cacheService.set('market', cacheKey, response.data, CACHE_TTL.MARKET_MS);
+                return response.data;
+            }
+        } catch {
+            // Fall through to legacy client-side behavior / fallback.
+        }
 
         if (!API_KEY) {
             console.warn("Using fallback buyer data (No API Key)");
@@ -175,6 +196,16 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         const cached = cacheService.get<string>('market', cacheKey);
         if (cached) return cached;
 
+        try {
+            const response = await apiPostJson<{ data: string }>('/api/ai/market-intel', { crop, buyers });
+            if (typeof response.data === 'string' && response.data.length > 0) {
+                cacheService.set('market', cacheKey, response.data, CACHE_TTL.MARKET_MS);
+                return response.data;
+            }
+        } catch {
+            // Fall through to legacy client-side behavior / fallback.
+        }
+
         if (!API_KEY) return FALLBACK_INTEL;
 
         try {
@@ -210,7 +241,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         if (!API_KEY || buyers.length === 0) return buyers;
 
         const prompt = `
-            You are the CornIntel Chief Market Auditor.
+            You are the Crop Intel Chief Market Auditor.
             Your job is to REVIEW and CORRECT a list of corn buyer bids.
             
             1. Specific Benchmarks (Verify these if present):
@@ -264,6 +295,21 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             lastUpdated: new Date().toISOString()
         };
 
+        try {
+            const response = await apiPostJson<{ data: MarketOracle }>('/api/ai/oracle', { crop });
+            if (response.data) {
+                const oracleData: MarketOracle = {
+                    ...FALLBACK_ORACLE,
+                    ...response.data,
+                    lastUpdated: response.data.lastUpdated || new Date().toISOString()
+                };
+                cacheService.set('oracle', cacheKey, oracleData, CACHE_TTL.ORACLE_MS);
+                return oracleData;
+            }
+        } catch {
+            // Fall through to legacy client-side behavior / fallback.
+        }
+
         if (!API_KEY) return FALLBACK_ORACLE;
 
         const date = new Date();
@@ -272,7 +318,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         const contractMonthQuery = crop === 'Soybeans' ? `Nov '${year}` : `Mar '${year + 1}`;
 
         const prompt = `
-            You are the CornIntel Market Oracle (covering all crops).
+            You are the Crop Intel Market Oracle (covering all crops).
             Your ONLY job is to find the current "Global Truths" for the ${crop} market.
             
             Current Date: December 2025.
@@ -315,10 +361,19 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
     }
 
     async enrichBuyersWithMarketData(buyers: Buyer[], oracle: MarketOracle, crop: CropType = 'Yellow Corn'): Promise<Buyer[]> {
+        try {
+            const response = await apiPostJson<{ data: Buyer[] }>('/api/ai/enrich-buyers', { buyers, oracle, crop });
+            if (Array.isArray(response.data) && response.data.length > 0) {
+                return response.data;
+            }
+        } catch {
+            // Fall through to legacy client-side behavior / fallback.
+        }
+
         if (!API_KEY) return buyers;
 
         // Ensure Guardian Hankinson is in the list
-        let buyersToEnrich = [...buyers];
+        const buyersToEnrich = [...buyers];
         const hankinsonIndex = buyersToEnrich.findIndex(b =>
             b.name.toLowerCase().includes('hankinson') ||
             b.name.toLowerCase().includes('guardian')
@@ -366,7 +421,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         }));
 
         const prompt = `
-            You are CornIntel Pricing Engine.
+            You are Crop Intel Pricing Engine.
             Use these GLOBAL TRUTHS to generate buyer bids for ${crop}:
             - Futures Price: $${oracle.futuresPrice} (${oracle.contractMonth})
             - Central Region Baseline Basis: ${oracle.centralRegionBasis}

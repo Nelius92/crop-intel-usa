@@ -270,6 +270,98 @@ export async function scrapeBarchartState(state: string): Promise<ScrapedBid[]> 
 }
 
 /**
+ * Scrape Scoular Bushel Portal for cash bids.
+ * This handles the specific markdown format returned by their portal.
+ */
+export async function scrapeScoularBids(): Promise<ScrapedBid[]> {
+    const fc = getFirecrawl();
+    const url = 'https://portal.bushelpowered.com/scoular/cash-bids';
+    const bids: ScrapedBid[] = [];
+
+    try {
+        logger.info('Scraping Scoular cash bids', { url });
+
+        const result = await fc.scrape(url, {
+            formats: ['markdown'],
+            waitFor: 5000
+        });
+
+        if (!result.markdown) {
+            logger.warn('Scoular scrape returned no content');
+            return bids;
+        }
+
+        const lines = result.markdown.split('\n').map(l => l.trim()).filter(Boolean);
+        const now = new Date().toISOString();
+
+        let currentLocation = '';
+        let currentCommodity = '';
+        let headersFound = false;
+        let valuesBuffer: string[] = [];
+
+        for (const line of lines) {
+            if (line.startsWith('##### ')) {
+                // e.g., "##### Downs, KS" -> "Downs"
+                currentLocation = line.replace('##### ', '').split(',')[0].trim();
+                headersFound = false;
+                valuesBuffer = [];
+                continue;
+            }
+            if (line.startsWith('###### ')) {
+                currentCommodity = line.replace('###### ', '').trim();
+                headersFound = false;
+                valuesBuffer = [];
+                continue;
+            }
+            if (line === 'Futures Month') {
+                headersFound = true;
+                valuesBuffer = [];
+                continue;
+            }
+            if (line === '* * *' || line.includes('---')) {
+                headersFound = false;
+                valuesBuffer = [];
+                continue;
+            }
+
+            if (headersFound && currentLocation && currentCommodity) {
+                valuesBuffer.push(line);
+                if (valuesBuffer.length === 6) {
+                    const [delivery, bidStr, basisStr] = valuesBuffer;
+
+                    if (bidStr !== '—' && !isNaN(parseFloat(bidStr))) {
+                        let commodity = currentCommodity;
+                        if (commodity === 'YC') commodity = 'Corn';
+                        else if (commodity === 'YSB') commodity = 'Soybeans';
+                        else if (commodity === 'HRWW') commodity = 'Wheat';
+                        else if (commodity === 'SOR') commodity = 'Sorghum';
+
+                        bids.push({
+                            facilityName: `Scoular ${currentLocation}`,
+                            commodity,
+                            cashBid: parseFloat(bidStr),
+                            basis: basisStr !== '—' ? parseFloat(basisStr) : null,
+                            deliveryPeriod: delivery,
+                            source: url,
+                            scrapedAt: now
+                        });
+                    }
+                    valuesBuffer = [];
+                }
+            }
+        }
+
+        logger.info('Scoular scrape complete', { bidCount: bids.length });
+    } catch (error) {
+        logger.error('Scoular scrape error', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+
+    return bids;
+}
+
+/**
  * Upsert scraped bids into the buyers table.
  * Matches by facility name + state using fuzzy matching.
  */
@@ -341,9 +433,7 @@ export async function upsertScrapedBids(bids: ScrapedBid[]): Promise<{
 
 /** BNSF corridor states to scrape from Barchart */
 const BNSF_STATES = [
-    'ND', 'SD', 'MN', 'MT', 'WY', 'CO',
-    'NE', 'KS', 'OK', 'TX', 'IA', 'MO',
-    'IL', 'WA', 'OR', 'CA', 'AZ', 'ID',
+    'ND',
 ];
 
 export interface PipelineResult {
@@ -383,6 +473,16 @@ export async function runDailyBidPipeline(): Promise<PipelineResult> {
             errors.push(msg);
             logger.error(msg);
         }
+    }
+
+    // Phase 1.5: Direct Scoular Scrape
+    try {
+        const scoularBids = await scrapeScoularBids();
+        allBids.push(...scoularBids);
+    } catch (error) {
+        const msg = `Scoular Scrape: ${error instanceof Error ? error.message : String(error)}`;
+        errors.push(msg);
+        logger.error(msg);
     }
 
     // Phase 2: Upsert bids into Postgres

@@ -6,11 +6,12 @@ import { UnderConstructionPage } from './pages/UnderConstructionPage';
 import { BottomNav } from './components/BottomNav';
 import { CloudHealthCheck } from './components/CloudHealthCheck';
 import { CropSelector } from './components/CropSelector';
-import { Sprout } from 'lucide-react';
+import { Logo } from './components/Logo';
 import { CropType } from './types';
 
 // Toggle this to show/hide the under construction page
 const SHOW_UNDER_CONSTRUCTION = false;
+const SHOW_DEV_TOOLS = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_TOOLS === 'true';
 
 function App() {
     const [activeTab, setActiveTab] = useState<'map' | 'buyers' | 'settings'>('map');
@@ -35,14 +36,9 @@ function App() {
     return (
         <div className="w-screen h-screen bg-corn-base overflow-hidden relative">
             {/* Top Bar */}
-            <div className="absolute top-0 left-0 right-0 h-14 sm:h-16 bg-gradient-to-b from-corn-base/90 to-transparent z-40 px-4 sm:px-6 flex items-center justify-between pointer-events-none">
+            <div className="absolute top-0 left-0 right-0 h-16 sm:h-20 bg-gradient-to-b from-black to-transparent z-40 px-4 sm:px-6 flex items-center justify-between pointer-events-none">
                 <div className="flex items-center gap-2 pointer-events-auto">
-                    <div className="bg-corn-accent/20 p-1.5 sm:p-2 rounded-lg">
-                        <Sprout className="text-corn-accent" size={20} />
-                    </div>
-                    <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight">
-                        Corn<span className="text-corn-accent">Intel</span> <span className="hidden xs:inline">USA</span>
-                    </h1>
+                    <Logo size="md" className="sm:scale-110 origin-left" />
                 </div>
 
                 <div className="pointer-events-auto">
@@ -61,7 +57,7 @@ function App() {
             <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
             {/* Cloud Integrations Health Check */}
-            <CloudHealthCheck />
+            {SHOW_DEV_TOOLS ? <CloudHealthCheck /> : null}
         </div>
     );
 }

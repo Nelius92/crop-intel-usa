@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Buyer, RailConfidenceLevel } from '../types';
-import { Train, Filter, X, ShieldCheck } from 'lucide-react';
+import { Train, Filter, X, ShieldCheck, Search } from 'lucide-react';
 
 const RAIL_BADGE: Record<RailConfidenceLevel, { label: string; color: string }> = {
     confirmed: { label: 'BNSF ✓', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
@@ -73,85 +73,107 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
     };
 
     return (
-        <div className="w-full bg-[#120202]/60 backdrop-blur-xl rounded-2xl border border-white/5 shadow-depth overflow-hidden flex flex-col h-full animate-fade-in-up">
+        <div className="w-full bg-[#13151a] rounded-2xl border border-[#2a2d36] shadow-xl flex flex-col animate-fade-in-up mb-8">
             {/* Header with count and filter toggle */}
-            <div className="p-4 border-b border-white/5 bg-gradient-to-r from-red-900/10 to-transparent">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-bold text-white tracking-wide">Buyer Directory</h3>
-                        <span className="text-xs text-slate-400 bg-white/5 px-2 py-1 rounded-md font-mono">
-                            {filtered.length} of {buyers.length}
+            <div className="px-6 py-4 border-b border-[#2a2d36] bg-[#1a1c23] flex justify-between items-center z-20 sticky top-0 rounded-t-2xl">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-black text-slate-100 uppercase tracking-widest drop-shadow-md">
+                        Buyer Network
+                    </h2>
+                    <span className="bg-red-500/10 text-red-500 border border-red-500/20 px-2.5 py-0.5 rounded-full text-xs font-bold tracking-widest">
+                        {buyers.length} ONLINE
+                    </span>
+                    {activeFilterCount > 0 && (
+                        <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full text-xs font-medium flex items-center gap-1.5 ml-2">
+                            <Filter size={10} />
+                            {activeFilterCount} Active
                         </span>
-                    </div>
-                    <div className="flex items-center gap-2">
+                    )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`p-2 rounded-lg border transition-all duration-200 
+                            ${showFilters
+                                ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                                : 'bg-[#2a2d36]/50 border-[#2a2d36] text-slate-400 hover:bg-[#2a2d36] hover:text-slate-200'
+                            }`}
+                        title="Toggle Filters"
+                    >
+                        <Filter size={18} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Collapsible Filter Bar */}
+            <div className={`transition-all duration-300 ease-in-out border-b border-[#2a2d36] bg-[#13151a] overflow-hidden
+                ${showFilters ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 border-transparent'}`}>
+                {showFilters && (
+                    <div className="px-6 py-4 flex flex-wrap gap-4 items-center">
+                        <div className="flex items-center gap-2">
+                            <Search size={14} className="text-slate-500" />
+                            <input
+                                type="text"
+                                placeholder="Search buyers, city..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="bg-[#1a1c23] border border-[#2a2d36] rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-red-500/50 focus:bg-[#1e2028] transition-colors w-48 placeholder:text-slate-600"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Type:</span>
+                            <div className="flex gap-2">
+                                {uniqueTypes.map(type => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setFilterType(filterType === type ? '' : type)}
+                                        className={`px-2.5 py-1 rounded text-xs font-bold uppercase transition-colors border
+                                            ${filterType === type
+                                                ? 'bg-red-500/20 text-red-500 border-red-500/30'
+                                                : filterType === ''
+                                                    ? 'bg-[#1a1c23] text-slate-200 border-[#2a2d36]'
+                                                    : 'bg-transparent text-slate-400 border-transparent hover:bg-[#1a1c23]'
+                                            }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* State */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">State:</span>
+                            <select
+                                value={filterState}
+                                onChange={(e) => setFilterState(e.target.value)}
+                                className="bg-[#1a1c23] border border-[#2a2d36] rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-red-500/50 appearance-none cursor-pointer"
+                            >
+                                <option value="" className="bg-[#1a1c23]">All States</option>
+                                {uniqueStates.map(s => (
+                                    <option key={s} value={s} className="bg-[#1a1c23]">{s}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         {/* BNSF Toggle */}
                         <button
                             onClick={() => setBnsfOnly(!bnsfOnly)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${bnsfOnly
-                                ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-                                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                                ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+                                : 'bg-[#1a1c23] text-slate-400 border-[#2a2d36] hover:bg-[#1e2028]'
                                 }`}
                         >
                             <Train size={14} />
                             BNSF-Served
                         </button>
-                        {/* Filter toggle */}
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${showFilters || activeFilterCount > 0
-                                ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
-                                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                                }`}
-                        >
-                            <Filter size={14} />
-                            Filters
-                            {activeFilterCount > 0 && (
-                                <span className="bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                                    {activeFilterCount}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                </div>
 
-                {/* Filter Bar */}
-                {showFilters && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-white/5">
-                        {/* Search */}
-                        <input
-                            type="text"
-                            placeholder="Search name, city..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 w-48"
-                        />
-                        {/* Type */}
-                        <select
-                            value={filterType}
-                            onChange={(e) => setFilterType(e.target.value)}
-                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
-                        >
-                            <option value="" className="bg-[#1a1a1a]">All Types</option>
-                            {uniqueTypes.map(t => (
-                                <option key={t} value={t} className="bg-[#1a1a1a] capitalize">{t}</option>
-                            ))}
-                        </select>
-                        {/* State */}
-                        <select
-                            value={filterState}
-                            onChange={(e) => setFilterState(e.target.value)}
-                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
-                        >
-                            <option value="" className="bg-[#1a1a1a]">All States</option>
-                            {uniqueStates.map(s => (
-                                <option key={s} value={s} className="bg-[#1a1a1a]">{s}</option>
-                            ))}
-                        </select>
-                        {/* Clear */}
                         {activeFilterCount > 0 && (
                             <button
                                 onClick={clearFilters}
-                                className="flex items-center gap-1 px-2 py-1.5 text-xs text-red-400 hover:text-red-300 transition-colors"
+                                className="flex items-center gap-1 px-2 py-1.5 text-xs text-red-500 hover:text-red-400 transition-colors"
                             >
                                 <X size={12} /> Clear
                             </button>
@@ -160,120 +182,171 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                 )}
             </div>
 
-            <div className="w-full overflow-auto flex-1">
-                {/* Desktop Table View */}
-                <div className="hidden md:block w-full">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-white/5 sticky top-0 z-10 backdrop-blur-sm">
-                            <tr>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Location</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Basis</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Cash</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right text-red-400">Freight</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right text-green-400">Net</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-emerald-400 uppercase tracking-wider text-right">vs Hank</th>
-                                <th className="px-3 py-3 text-xs font-semibold text-orange-400 uppercase tracking-wider text-center">Rail</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {displayed.map((buyer) => (
-                                <tr
-                                    key={buyer.id}
-                                    className="hover:bg-white/5 even:bg-white/[0.02] transition-colors cursor-pointer group"
-                                    onClick={() => onSelect(buyer)}
-                                >
-                                    <td className="px-3 py-3">
-                                        <div className="font-medium text-slate-200 text-sm group-hover:text-corn-accent transition-colors flex items-center gap-1.5">
-                                            {buyer.name}
-                                            {buyer.verified && (
-                                                <ShieldCheck size={14} className="text-green-400 flex-shrink-0" />
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-slate-500 mt-0.5">{buyer.contactPhone}</div>
-                                    </td>
-                                    <td className="px-3 py-3">
-                                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium capitalize border border-white/5
-                                            ${buyer.type === 'ethanol' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
-                                                buyer.type === 'feedlot' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                                    buyer.type === 'export' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                                                        buyer.type === 'crush' ? 'bg-pink-500/10 text-pink-400 border-pink-500/20' :
-                                                            buyer.type === 'shuttle' || buyer.type === 'transload' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' :
-                                                                'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
-                                            {buyer.type}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-3">
-                                        <div className="text-sm text-slate-300">{buyer.city}, {buyer.state}</div>
-                                        <div className="text-xs text-slate-500">{buyer.region}</div>
-                                    </td>
-                                    <td className="px-3 py-3 text-right font-mono text-sm">
-                                        <span className={`font-semibold ${buyer.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <div className="w-full flex-1">
+                {/* Desktop Premium Grid View */}
+                <div className="hidden lg:block w-full min-w-[900px]">
+                    {/* Header Row */}
+                    <div className="grid grid-cols-[2.5fr,1fr,1.5fr,1fr,1fr,1.2fr,1.2fr,1.2fr,1fr] gap-4 px-6 py-4 bg-[#1a1c23] sticky top-0 z-10 border-b border-[#2a2d36]">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Facility Name</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Type</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Location</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Basis</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Cash Price</div>
+                        <div className="text-xs font-bold text-red-500/80 uppercase tracking-widest text-right">Freight</div>
+                        <div className="text-xs font-bold text-red-400 uppercase tracking-widest text-right">Net Price</div>
+                        <div className="text-xs font-bold text-red-500/80 uppercase tracking-widest text-right">vs Benchmark</div>
+                        <div className="text-xs font-bold text-orange-400/80 uppercase tracking-widest text-center">Rail Access</div>
+                    </div>
+
+                    {/* Data Rows */}
+                    <div className="flex flex-col divide-y divide-[#2a2d36]">
+                        {displayed.map((buyer) => (
+                            <div
+                                key={buyer.id}
+                                onClick={() => onSelect(buyer)}
+                                className="grid grid-cols-[2.5fr,1fr,1.5fr,1fr,1fr,1.2fr,1.2fr,1.2fr,1fr] gap-4 px-6 py-4 items-center bg-transparent hover:bg-[#1e2028] transition-all duration-200 cursor-pointer group"
+                            >
+                                {/* Name column */}
+                                <div className="flex flex-col">
+                                    <div className="font-bold text-slate-200 text-[15px] group-hover:text-red-400 transition-colors flex items-center gap-2 truncate">
+                                        {buyer.name}
+                                        {buyer.verified && (
+                                            <ShieldCheck size={14} className="text-red-500 flex-shrink-0" />
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-slate-500 font-mono mt-1">{buyer.contactPhone || 'No Phone'}</div>
+                                </div>
+
+                                {/* Type Column */}
+                                <div>
+                                    <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border
+                                        ${buyer.type === 'ethanol' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                            buyer.type === 'feedlot' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                buyer.type === 'export' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                                                    buyer.type === 'crush' ? 'bg-pink-500/10 text-pink-400 border-pink-500/20' :
+                                                        buyer.type === 'shuttle' || buyer.type === 'transload' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' :
+                                                            'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                        {buyer.type}
+                                    </span>
+                                </div>
+
+                                {/* Location Column */}
+                                <div className="flex flex-col">
+                                    <div className="text-[13px] font-medium text-slate-300 truncate">{buyer.city}, {buyer.state}</div>
+                                    <div className="text-[11px] text-slate-500 uppercase tracking-wider mt-0.5 truncate">{buyer.region}</div>
+                                </div>
+
+                                {/* Basis Column */}
+                                <div className="text-right text-sm font-mono font-medium">
+                                    {buyer.basis !== undefined ? (
+                                        <span className={`${buyer.basis > 0 ? 'text-emerald-400' : buyer.basis < 0 ? 'text-red-400' : 'text-slate-400'}`}>
                                             {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
                                         </span>
-                                    </td>
-                                    <td className="px-3 py-3 text-right font-mono text-sm text-slate-300">
-                                        ${buyer.cashPrice?.toFixed(2)}
-                                    </td>
-                                    <td className="px-3 py-3 text-right font-mono text-sm text-red-400" title={buyer.freightFormula || ''}>
-                                        <span className="opacity-60 mr-0.5">{buyer.freightMode === 'rail' ? '🚂' : '🚛'}</span>
-                                        ${Math.abs(buyer.freightCost ?? 0).toFixed(2)}
-                                    </td>
-                                    <td className="px-3 py-3 text-right font-mono text-sm font-bold text-green-400">
+                                    ) : (
+                                        <span className="text-slate-600 text-[11px] tracking-wider">NO BID</span>
+                                    )}
+                                </div>
+
+                                {/* Cash Price Column */}
+                                <div className="text-right text-[15px] font-mono font-bold text-slate-200">
+                                    {buyer.cashPrice !== undefined ? `$${buyer.cashPrice.toFixed(2)}` : <span className="text-slate-500 text-xs">--</span>}
+                                </div>
+
+                                {/* Freight Column */}
+                                <div className="text-right flex flex-col items-end" title={buyer.freightFormula || ''}>
+                                    <div className="text-[15px] font-mono font-bold text-red-500">
+                                        -${Math.abs(buyer.freightCost ?? 0).toFixed(2)}
+                                    </div>
+                                    <div className="text-[10px] uppercase font-bold text-red-500/50 mt-0.5 tracking-wider">
+                                        {buyer.freightMode === 'rail' ? 'RAIL FRT' : 'TRUCK FRT'}
+                                    </div>
+                                </div>
+
+                                {/* Net Price Column */}
+                                <div className="text-right">
+                                    <div className="text-[17px] font-mono font-black text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]">
                                         ${buyer.netPrice?.toFixed(2) || '-'}
-                                    </td>
-                                    <td className="px-3 py-3 text-right font-mono text-sm">
-                                        {buyer.benchmarkDiff !== undefined ? (
-                                            <span className={`font-semibold ${buyer.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                                                {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
-                                            </span>
-                                        ) : '-'}
-                                    </td>
-                                    <td className="px-3 py-3 text-center">
-                                        <RailBadge buyer={buyer} />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                                    </div>
+                                </div>
+
+                                {/* vs Benchmark Column */}
+                                <div className="text-right">
+                                    {buyer.benchmarkDiff !== undefined ? (
+                                        <div className={`text-sm font-mono font-bold px-2 py-1 inline-block rounded border ${buyer.benchmarkDiff >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                            {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
+                                        </div>
+                                    ) : <span className="text-slate-600">-</span>}
+                                </div>
+
+                                {/* Rail Column */}
+                                <div className="flex justify-center">
+                                    <RailBadge buyer={buyer} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Mobile Card View */}
-                <div className="md:hidden flex flex-col gap-2 p-3">
+                {/* Mobile / Tablet Card View */}
+                <div className="lg:hidden flex flex-col gap-3 p-4">
                     {displayed.map((buyer) => (
                         <div
                             key={buyer.id}
                             onClick={() => onSelect(buyer)}
-                            className="bg-white/5 rounded-lg p-3 border border-white/5 active:bg-white/10 transition-colors"
+                            className="bg-[#1a1c23] rounded-xl p-4 border border-[#2a2d36] shadow-lg hover:border-red-500/50 hover:bg-[#1e2028] transition-all cursor-pointer group relative overflow-hidden"
                         >
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-white text-sm flex items-center gap-1.5 truncate">
+                            {/* Accent line on left */}
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
+
+                            <div className="flex justify-between items-start mb-4 pl-2">
+                                <div className="flex-1 min-w-0 pr-4">
+                                    <h4 className="font-bold text-slate-100 text-[15px] flex items-center gap-2 truncate group-hover:text-red-400 transition-colors">
                                         {buyer.name}
-                                        {buyer.verified && <ShieldCheck size={12} className="text-green-400 flex-shrink-0" />}
+                                        {buyer.verified && <ShieldCheck size={14} className="text-red-500 flex-shrink-0" />}
                                     </h4>
-                                    <div className="text-xs text-slate-400">{buyer.city}, {buyer.state}</div>
+                                    <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider">{buyer.city}, {buyer.state}</div>
                                 </div>
-                                <div className="text-right ml-2 flex-shrink-0">
-                                    <div className="text-lg font-mono font-bold text-green-400">
+                                <div className="text-right flex-shrink-0">
+                                    <div className="text-[10px] text-red-500/70 font-bold uppercase tracking-widest mb-0.5">NET PRICE</div>
+                                    <div className="text-xl font-mono font-black text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]">
                                         ${buyer.netPrice?.toFixed(2) || '-'}
-                                    </div>
-                                    <div className="text-xs text-red-400 font-mono">
-                                        {buyer.freightMode === 'rail' ? '🚂' : '🚛'} -${Math.abs(buyer.freightCost ?? 0).toFixed(2)} frt
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium capitalize border
-                                    ${buyer.type === 'ethanol' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+
+                            <div className="grid grid-cols-3 gap-2 mb-4 pl-2 border-y border-[#2a2d36] py-3">
+                                <div>
+                                    <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">CASH</div>
+                                    <div className="font-mono text-sm text-slate-200 font-bold">${buyer.cashPrice?.toFixed(2)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">BASIS</div>
+                                    {buyer.basis !== undefined ? (
+                                        <div className={`font-mono text-sm font-bold ${buyer.basis > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
+                                        </div>
+                                    ) : (
+                                        <div className="font-mono text-[11px] text-slate-600 tracking-wider mt-1">NO BID</div>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-[10px] text-red-500/70 uppercase tracking-widest mb-1">FREIGHT</div>
+                                    <div className="font-mono text-sm font-bold text-red-500">
+                                        -${Math.abs(buyer.freightCost ?? 0).toFixed(2)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap pl-2">
+                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border
+                                    ${buyer.type === 'ethanol' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                         buyer.type === 'feedlot' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                                             'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
                                     {buyer.type}
                                 </span>
                                 <RailBadge buyer={buyer} />
                                 {buyer.benchmarkDiff !== undefined && (
-                                    <span className={`text-xs font-mono font-semibold ${buyer.benchmarkDiff >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                                    <span className={`ml-auto px-2 py-1 rounded text-[10px] font-mono font-bold border ${buyer.benchmarkDiff >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                                         vs Hank: {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
                                     </span>
                                 )}
@@ -284,18 +357,22 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
                 {/* Load More / Empty State */}
                 {hasMore && (
-                    <div className="p-4 text-center border-t border-white/5">
+                    <div className="p-4 text-center border-t border-[#2a2d36] mt-4">
                         <button
                             onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
-                            className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm text-slate-300 transition-colors border border-white/10"
+                            className="px-6 py-2.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-sm font-bold tracking-wider uppercase text-red-400 transition-colors border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]"
                         >
                             Load more ({filtered.length - visibleCount} remaining)
                         </button>
                     </div>
                 )}
                 {filtered.length === 0 && (
-                    <div className="p-8 text-center text-slate-500">
-                        {buyers.length === 0 ? 'Loading buyer data...' : 'No buyers match your filters'}
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 rounded-full bg-[#1a1c23] border border-[#2a2d36] flex items-center justify-center mb-4 text-slate-600">
+                            <Search size={24} />
+                        </div>
+                        <p className="text-lg font-medium text-slate-300">No buyers found</p>
+                        <p className="text-sm mt-1">{buyers.length === 0 ? 'Loading buyer data from network...' : 'Try adjusting your filters'}</p>
                     </div>
                 )}
             </div>

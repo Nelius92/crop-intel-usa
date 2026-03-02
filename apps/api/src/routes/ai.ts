@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Router } from 'express';
 import { z } from 'zod';
+import { backendGeminiService } from '../services/gemini.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -160,54 +161,58 @@ function buildMarketIntel(crop: CropType, buyers: any[]): string {
 
 export const aiRouter = Router();
 
-aiRouter.post('/heatmap', (req, res, next) => {
+aiRouter.post('/heatmap', async (req, res, next) => {
     try {
         const parsed = buyersRequestSchema.parse(req.body ?? {});
         const crop = parsed.crop ?? 'Yellow Corn';
-        res.json({ data: buildHeatmap(crop) });
+        const data = await backendGeminiService.generateHeatmap(crop, () => buildHeatmap(crop));
+        res.json({ data });
     } catch (error) {
         next(error);
     }
 });
 
-aiRouter.post('/buyers', (req, res, next) => {
+aiRouter.post('/buyers', async (req, res, next) => {
     try {
         const parsed = buyersRequestSchema.parse(req.body ?? {});
         const crop = parsed.crop ?? 'Yellow Corn';
-        res.json({ data: buildBuyers(crop) });
+        const data = await backendGeminiService.generateBuyers(crop, () => buildBuyers(crop));
+        res.json({ data });
     } catch (error) {
         next(error);
     }
 });
 
-aiRouter.post('/market-intel', (req, res, next) => {
+aiRouter.post('/market-intel', async (req, res, next) => {
     try {
         const parsed = marketIntelRequestSchema.parse(req.body ?? {});
         const crop = parsed.crop ?? 'Yellow Corn';
         const buyers = parsed.buyers ?? [];
-        res.json({ data: buildMarketIntel(crop, buyers) });
+        const data = await backendGeminiService.generateMarketIntel(crop, buyers, () => buildMarketIntel(crop, buyers));
+        res.json({ data });
     } catch (error) {
         next(error);
     }
 });
 
-aiRouter.post('/oracle', (req, res, next) => {
+aiRouter.post('/oracle', async (req, res, next) => {
     try {
         const parsed = buyersRequestSchema.parse(req.body ?? {});
         const crop = parsed.crop ?? 'Yellow Corn';
-        res.json({ data: buildOracle(crop) });
+        const data = await backendGeminiService.generateOracle(crop, () => buildOracle(crop));
+        res.json({ data });
     } catch (error) {
         next(error);
     }
 });
 
-aiRouter.post('/enrich-buyers', (req, res, next) => {
+aiRouter.post('/enrich-buyers', async (req, res, next) => {
     try {
         const parsed = enrichBuyersRequestSchema.parse(req.body ?? {});
         const crop = parsed.crop ?? 'Yellow Corn';
         const { futuresPrice } = parsed.oracle;
 
-        const data = parsed.buyers.map((buyer: any, index: number) => {
+        const fallbackData = parsed.buyers.map((buyer: any, index: number) => {
             const basis = typeof buyer.basis === 'number' ? buyer.basis : (crop === 'Yellow Corn' ? -0.25 : 0);
             const freightCost = Math.abs(Number(buyer.freightCost ?? 0));
             const cashPrice = parseFloat((futuresPrice + basis).toFixed(2));
@@ -224,6 +229,7 @@ aiRouter.post('/enrich-buyers', (req, res, next) => {
             };
         });
 
+        const data = await backendGeminiService.enrichBuyers(crop, parsed.buyers, parsed.oracle, () => fallbackData);
         res.json({ data });
     } catch (error) {
         next(error);

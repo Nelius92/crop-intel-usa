@@ -1,0 +1,260 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-0",
+        "name": "BNSF Logistics Center Fontana",
+        "city": "Fontana",
+        "state": "CA",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.435,
+          34.0922
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-1",
+        "name": "BNSF Logistics Park Chicago",
+        "city": "Elwood",
+        "state": "IL",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -88.1067,
+          41.3853
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-2",
+        "name": "BNSF Alliance Intermodal Facility",
+        "city": "Haslet",
+        "state": "TX",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -97.3106,
+          32.9618
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-3",
+        "name": "BNSF Seattle International Gateway",
+        "city": "Seattle",
+        "state": "WA",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -122.3364,
+          47.5855
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-4",
+        "name": "BNSF Logistics Park Kansas City",
+        "city": "Edgerton",
+        "state": "KS",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -95.0116,
+          38.7617
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-5",
+        "name": "BNSF Memphis Intermodal Facility",
+        "city": "Memphis",
+        "state": "TN",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -89.9238,
+          35.0392
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-6",
+        "name": "BNSF Denver Intermodal Facility",
+        "city": "Denver",
+        "state": "CO",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -104.9758,
+          39.8033
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-7",
+        "name": "BNSF Phoenix Transload",
+        "city": "Glendale",
+        "state": "AZ",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -112.1856,
+          33.5434
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-8",
+        "name": "BNSF Stockton Intermodal Facility",
+        "city": "Stockton",
+        "state": "CA",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.2611,
+          37.9177
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-9",
+        "name": "BNSF Omaha Transload Terminal",
+        "city": "Omaha",
+        "state": "NE",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -95.9616,
+          41.2066
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-10",
+        "name": "BNSF Sweetwater Logistics Center",
+        "city": "Sweetwater",
+        "state": "TX",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -100.4058,
+          32.4709
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-11",
+        "name": "BNSF Minot Transload",
+        "city": "Minot",
+        "state": "ND",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -101.2922,
+          48.2329
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-12",
+        "name": "BNSF Spokane International",
+        "city": "Spokane",
+        "state": "WA",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -117.309,
+          47.6685
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-13",
+        "name": "BNSF Lincoln Managed Transload",
+        "city": "Lincoln",
+        "state": "NE",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -96.7025,
+          40.8136
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bnsf-transload-14",
+        "name": "BNSF Galesburg Transload",
+        "city": "Galesburg",
+        "state": "IL",
+        "type": "Premier Transload"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -90.3807,
+          40.9416
+        ]
+      }
+    }
+  ]
+}

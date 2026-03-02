@@ -22,10 +22,11 @@ export const FreightCalculator: React.FC<FreightCalculatorProps> = ({ buyers }) 
 
             setLoading(true);
             try {
-                // Calculate freight for ALL buyers to find the true best net price
-                const results = await Promise.all(buyers.map(async (buyer) => {
+                // Calculate freight ONLY for buyers with a real cash price to find true net price
+                const validBuyers = buyers.filter(b => b.cashPrice !== undefined);
+                const results = await Promise.all(validBuyers.map(async (buyer) => {
                     const quote = await calculateFreight({ lat: buyer.lat, lng: buyer.lng }, buyer.city);
-                    const netPrice = buyer.cashPrice - quote.ratePerBushel;
+                    const netPrice = buyer.cashPrice! - quote.ratePerBushel;
                     return {
                         buyer,
                         quote: {
@@ -94,7 +95,7 @@ export const FreightCalculator: React.FC<FreightCalculatorProps> = ({ buyers }) 
                             <div className="grid grid-cols-2 gap-2 text-xs mt-2 pt-2 border-t border-zinc-700/50">
                                 <div>
                                     <div className="text-zinc-500">Cash Bid</div>
-                                    <div className="text-zinc-300 font-mono">${deal.buyer.cashPrice.toFixed(2)}</div>
+                                    <div className="text-zinc-300 font-mono">${deal.buyer.cashPrice!.toFixed(2)}</div>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-zinc-500">Freight Cost</div>

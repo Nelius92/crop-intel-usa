@@ -78,8 +78,8 @@ export interface Buyer extends Coordinates {
     type: BuyerType;
     cropType?: CropType;
     organic?: boolean;
-    basis: number;
-    cashPrice: number;
+    basis?: number;
+    cashPrice?: number;
     city: string;
     state: string;
     region: string;

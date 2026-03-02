@@ -32,7 +32,7 @@ export const SettingsPage: React.FC = () => {
                         <label className="block text-sm font-medium text-slate-400 mb-2">Mapbox API Key</label>
                         <input
                             type="text"
-                            value={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
+                            value={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ? 'Configured (hidden)' : 'Not configured'}
                             disabled
                             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-300 font-mono text-sm opacity-50 cursor-not-allowed"
                         />

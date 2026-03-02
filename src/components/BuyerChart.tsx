@@ -10,11 +10,11 @@ interface BuyerChartProps {
 export const BuyerChart: React.FC<BuyerChartProps> = ({ buyers, onSelect }) => {
     // Process data for the chart: Get top 10 buyers by max basis
     const data = [...buyers]
-        .sort((a, b) => b.basis - a.basis)
+        .sort((a, b) => (b.basis ?? 0) - (a.basis ?? 0))
         .slice(0, 3)
         .map(buyer => ({
             name: buyer.name,
-            basis: buyer.basis,
+            basis: buyer.basis ?? 0,
             location: `${buyer.city}, ${buyer.state}`,
             type: buyer.type,
             rail: buyer.railAccessible,

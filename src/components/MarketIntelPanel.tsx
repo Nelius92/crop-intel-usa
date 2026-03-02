@@ -11,8 +11,8 @@ export const MarketIntelPanel: React.FC<MarketIntelPanelProps> = ({ buyers }) =>
     const [activeTab, setActiveTab] = useState<'top3' | 'freight'>('top3');
     const [isMinimized, setIsMinimized] = useState(false);
 
-    // Get top 3 buyers (assumes buyers are already sorted by basis)
-    const topBuyers = buyers.slice(0, 3);
+    // Get top 3 buyers (filter out any without real basis bids)
+    const topBuyers = buyers.filter(b => b.basis !== undefined).slice(0, 3);
 
     return (
         <div className={`w-full bg-[#120202]/80 backdrop-blur-xl rounded-2xl border border-white/5 flex flex-col relative overflow-hidden group shadow-glass hover:shadow-glow transition-all duration-300 animate-fade-in-up ${isMinimized ? 'h-[60px]' : 'h-full'}`}>
@@ -77,8 +77,8 @@ export const MarketIntelPanel: React.FC<MarketIntelPanelProps> = ({ buyers }) =>
                                             </span>
                                             <span className="font-medium text-white truncate max-w-[120px]">{buyer.name}</span>
                                         </div>
-                                        <span className={`text-sm font-mono font-bold ${buyer.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                            {buyer.basis >= 0 ? '+' : ''}{buyer.basis.toFixed(2)}
+                                        <span className={`text-sm font-mono font-bold ${buyer.basis! >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {buyer.basis! >= 0 ? '+' : ''}{buyer.basis!.toFixed(2)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs text-zinc-400 pl-7">

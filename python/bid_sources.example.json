@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "buyer_external_seed_key": "guardian-hankinson-renewable-energy__hankinson__nd__ethanol",
+      "crop_type": "Yellow Corn",
+      "mode": "html",
+      "url": "https://example.com/corn-bids",
+      "label": "Facility posted bids",
+      "text_selector": ".cash-bids",
+      "value_regex": "(?i)corn[^\\n]{0,120}?\\$?([0-9]+(?:\\.[0-9]{1,4})?)",
+      "basis_regex": "(?i)basis[^\\n]{0,40}?([+-]?[0-9]+(?:\\.[0-9]{1,4})?)",
+      "confidence_score": 92
+    },
+    {
+      "buyer_external_seed_key": "red-trail-energy__richardton__nd__ethanol",
+      "crop_type": "Yellow Corn",
+      "mode": "html_to_pdf",
+      "url": "https://example.com/grain",
+      "label": "Bid sheet PDF",
+      "pdf_link_regex": "(?i)(corn|grain).*(bid|price).*(pdf)$",
+      "value_regex": "(?i)(cash|corn)[^\\n]{0,120}?\\$?([0-9]+(?:\\.[0-9]{1,4})?)",
+      "confidence_score": 90
+    }
+  ]
+}
