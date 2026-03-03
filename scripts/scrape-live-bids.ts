@@ -50,6 +50,9 @@ const BUSHEL_PORTALS: BushelPortal[] = [
     { name: 'Gavilon', url: 'https://portal.bushelpowered.com/gavilon/cash-bids', states: ['NE', 'IA', 'KS', 'TX'] },
     { name: 'Premier Companies', url: 'https://portal.bushelpowered.com/premierag/cash-bids', states: ['TX', 'KS', 'OK'] },
     { name: 'AGP', url: 'https://portal.bushelpowered.com/agp/cash-bids', states: ['NE', 'IA', 'MO', 'MN'] },
+    { name: 'CHS Dakota Plains', url: 'https://portal.bushelpowered.com/chsdakotaplainsag/cash-bids', states: ['ND', 'MN'] },
+    { name: 'CHS Northern Grain', url: 'https://portal.bushelpowered.com/chsnortherngrain/cash-bids', states: ['MN', 'ND'] },
+    { name: 'United Cooperative', url: 'https://portal.bushelpowered.com/unitedcooperative/cash-bids', states: ['WI', 'MN'] },
 ];
 
 async function scrapeBushelPortal(portal: BushelPortal): Promise<ScrapedBid[]> {
