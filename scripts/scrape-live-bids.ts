@@ -1,8 +1,8 @@
 /**
- * Live Cash Bid Scraper — Today's Prices (No DB Required)
+ * Live Cash Bid Scraper — Bushel-Powered Portals
  * 
- * Scrapes Barchart cash grain pages for real posted bids.
- * Outputs results to stdout + writes to /tmp/live-bids.json.
+ * Scrapes grain elevator portals for real cash bid prices.
+ * Uses Firecrawl with browser Actions to render JS content.
  * 
  * Usage: npx tsx scripts/scrape-live-bids.ts
  */
@@ -15,7 +15,6 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load FIRECRAWL_API_KEY from root .env
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
@@ -37,97 +36,43 @@ interface ScrapedBid {
     state: string;
 }
 
-// BNSF corridor states + major feedlot/processor states
-const SCRAPE_STATES = [
-    'ND', 'MN', 'SD', 'IA', 'NE', 'KS', 'TX', 'CA', 'WA', 'OR', 'ID',
-    'IL', 'IN', 'OH', 'MO'
-];
+// --- Bushel-Powered Portal Configuration ---
 
-function barchartUrl(state: string): string {
-    return `https://www.barchart.com/futures/quotes/ZC*0/cash-prices?state=${state}`;
+interface BushelPortal {
+    name: string;
+    url: string;
+    states: string[];
 }
 
-async function scrapeState(state: string): Promise<ScrapedBid[]> {
-    const url = barchartUrl(state);
+const BUSHEL_PORTALS: BushelPortal[] = [
+    { name: 'Scoular', url: 'https://portal.bushelpowered.com/scoular/cash-bids', states: ['KS', 'NE', 'CO'] },
+    { name: 'CHS Farmers Alliance', url: 'https://portal.bushelpowered.com/chsfarmersalliance/cash-bids', states: ['MN', 'ND', 'SD', 'MT'] },
+    { name: 'Gavilon', url: 'https://portal.bushelpowered.com/gavilon/cash-bids', states: ['NE', 'IA', 'KS', 'TX'] },
+    { name: 'Premier Companies', url: 'https://portal.bushelpowered.com/premierag/cash-bids', states: ['TX', 'KS', 'OK'] },
+    { name: 'AGP', url: 'https://portal.bushelpowered.com/agp/cash-bids', states: ['NE', 'IA', 'MO', 'MN'] },
+];
+
+async function scrapeBushelPortal(portal: BushelPortal): Promise<ScrapedBid[]> {
     const bids: ScrapedBid[] = [];
 
     try {
-        console.log(`  Scraping ${state}...`);
-        const result = await firecrawl.scrape(url, {
+        console.log(`  Scraping ${portal.name} portal...`);
+        const result = await firecrawl.scrape(portal.url, {
             formats: ['markdown'],
+            actions: [
+                { type: 'wait', milliseconds: 5000 },
+                { type: 'scroll', direction: 'down', amount: 5 },
+                { type: 'wait', milliseconds: 2000 },
+            ],
+            timeout: 30000,
         } as any) as any;
 
         if (!result.markdown) {
-            console.log(`    ⚠ No content for ${state}`);
+            console.log(`    ⚠ No content from ${portal.name}`);
             return bids;
         }
 
-        const lines = (result.markdown as string).split('\n');
-        const now = new Date().toISOString();
-
-        for (const line of lines) {
-            if (!line.includes('|')) continue;
-
-            const cells = line.split('|').map((c: string) => c.trim()).filter(Boolean);
-            if (cells.length < 3) continue;
-
-            // Skip header/separator rows
-            if (cells[0].includes('---') || cells[0].toLowerCase().includes('location')) continue;
-
-            const location = cells[0];
-            const priceMatch = cells.find((c: string) => /\d+\.\d{2}/.test(c));
-            const basisMatch = cells.find((c: string) => /[+-]?\d+\.?\d*/.test(c) && c !== priceMatch);
-
-            if (!priceMatch) continue;
-
-            const cashBid = parseFloat(priceMatch.replace(/[^0-9.-]/g, ''));
-            // Sanity: corn should be between $2 and $8 per bushel
-            if (cashBid < 2 || cashBid > 8) continue;
-
-            let basis: number | null = null;
-            if (basisMatch) {
-                const rawBasis = parseFloat(basisMatch.replace(/[^0-9.+-]/g, ''));
-                basis = Math.abs(rawBasis) > 5 ? rawBasis / 100 : rawBasis;
-            }
-
-            bids.push({
-                facilityName: location,
-                commodity: 'Corn',
-                cashBid,
-                basis,
-                deliveryPeriod: 'Spot',
-                source: url,
-                scrapedAt: now,
-                state
-            });
-        }
-
-        console.log(`    ✓ ${state}: ${bids.length} bids found`);
-    } catch (error: any) {
-        console.error(`    ✗ ${state} failed: ${error.message}`);
-    }
-
-    return bids;
-}
-
-// Also try Scoular portal (key BNSF-served facility)
-async function scrapeScoular(): Promise<ScrapedBid[]> {
-    const url = 'https://portal.bushelpowered.com/scoular/cash-bids';
-    const bids: ScrapedBid[] = [];
-
-    try {
-        console.log('  Scraping Scoular portal...');
-        const result = await firecrawl.scrape(url, {
-            formats: ['markdown'],
-            waitFor: 5000
-        });
-
-        if (!result.markdown) {
-            console.log('    ⚠ No content from Scoular');
-            return bids;
-        }
-
-        const lines = result.markdown.split('\n').map(l => l.trim()).filter(Boolean);
+        const lines = result.markdown.split('\n').map((l: string) => l.trim()).filter(Boolean);
         const now = new Date().toISOString();
 
         let currentLocation = '';
@@ -171,14 +116,14 @@ async function scrapeScoular(): Promise<ScrapedBid[]> {
                         else if (commodity === 'HRWW') commodity = 'Wheat';
 
                         bids.push({
-                            facilityName: `Scoular ${currentLocation}`,
+                            facilityName: `${portal.name} ${currentLocation}`,
                             commodity,
                             cashBid: parseFloat(bidStr),
                             basis: basisStr !== '—' ? parseFloat(basisStr) : null,
                             deliveryPeriod: delivery,
-                            source: url,
+                            source: portal.url,
                             scrapedAt: now,
-                            state: 'KS' // Scoular primary locations
+                            state: portal.states[0]
                         });
                     }
                     valuesBuffer = [];
@@ -186,9 +131,9 @@ async function scrapeScoular(): Promise<ScrapedBid[]> {
             }
         }
 
-        console.log(`    ✓ Scoular: ${bids.length} bids found`);
+        console.log(`    ✓ ${portal.name}: ${bids.length} bids found`);
     } catch (error: any) {
-        console.error(`    ✗ Scoular failed: ${error.message}`);
+        console.error(`    ✗ ${portal.name} failed: ${error.message}`);
     }
 
     return bids;
@@ -202,24 +147,20 @@ async function main() {
 
     const allBids: ScrapedBid[] = [];
 
-    // Scrape all BNSF corridor states
-    for (const state of SCRAPE_STATES) {
-        const bids = await scrapeState(state);
+    // Scrape all Bushel-powered portals
+    console.log('  📡 Scraping Bushel-Powered Portals\n');
+    for (const portal of BUSHEL_PORTALS) {
+        const bids = await scrapeBushelPortal(portal);
         allBids.push(...bids);
-        // Be nice to Barchart — rate limit
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
     }
-
-    // Scrape Scoular
-    const scoularBids = await scrapeScoular();
-    allBids.push(...scoularBids);
 
     // Filter to corn only
     const cornBids = allBids.filter(b =>
         b.commodity === 'Corn' && b.cashBid !== null
     );
 
-    // Sort by cash bid descending (best prices first)
+    // Sort by cash bid descending
     cornBids.sort((a, b) => (b.cashBid ?? 0) - (a.cashBid ?? 0));
 
     // Print summary
@@ -264,7 +205,7 @@ async function main() {
     fs.writeFileSync(outPath, JSON.stringify({
         scrapedAt: new Date().toISOString(),
         totalBids: cornBids.length,
-        statesSscraped: SCRAPE_STATES.length,
+        portalsScraped: BUSHEL_PORTALS.length,
         bids: cornBids,
         stateAverages: stateAvgs
     }, null, 2));
