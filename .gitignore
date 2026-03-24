@@ -122,3 +122,8 @@ certs/
 .env.bnsf
 *.pem
 *.p12
+# Debug screenshots
+bnsf_map_*.png
+bnsf_official_ref.png
+venv_image/
+tmp_test_puppeteer/

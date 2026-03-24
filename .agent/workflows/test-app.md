@@ -57,7 +57,7 @@ Check prices are reasonable:
 - Midwest buyers: ~$4.00 - $4.80
 - Texas buyers: ~$4.80 - $5.50
 
-### 7. Freight Calculator
+### 7. Freight Calculator 
 - [ ] Enter sample origin
 - [ ] Select destination
 - [ ] Calculate shows rate

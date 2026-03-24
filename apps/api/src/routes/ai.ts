@@ -43,7 +43,7 @@ const enrichBuyersRequestSchema = z.object({
     oracle: z.object({
         futuresPrice: z.number(),
         contractMonth: z.string(),
-        hankinsonBasis: z.number(),
+        benchmarkBasis: z.number(),
         centralRegionBasis: z.number().optional().default(-0.6),
         lastUpdated: z.string().optional(),
     }),
@@ -79,16 +79,16 @@ function loadSeedBuyers(): BuyerRecord[] {
 function cropDefaults(crop: CropType) {
     switch (crop) {
         case 'Soybeans':
-            return { futuresPrice: 11.42, contractMonth: "ZSH6 (Mar '26)", hankinsonBasis: -0.8 };
+            return { futuresPrice: 11.42, contractMonth: "ZSH6 (Mar '26)", benchmarkBasis: -0.8 };
         case 'Wheat':
-            return { futuresPrice: 5.42, contractMonth: "ZWH6 (Mar '26)", hankinsonBasis: -0.6 };
+            return { futuresPrice: 5.42, contractMonth: "ZWH6 (Mar '26)", benchmarkBasis: -0.6 };
         case 'White Corn':
-            return { futuresPrice: 4.6, contractMonth: "ZCH6 (Mar '26)", hankinsonBasis: -0.1 };
+            return { futuresPrice: 4.6, contractMonth: "ZCH6 (Mar '26)", benchmarkBasis: -0.1 };
         case 'Sunflowers':
-            return { futuresPrice: 18.5, contractMonth: 'Cash Market', hankinsonBasis: 0.0 };
+            return { futuresPrice: 23.30, contractMonth: 'Spot Cash (High-Oleic)', benchmarkBasis: 0 };
         case 'Yellow Corn':
         default:
-            return { futuresPrice: 4.3, contractMonth: "ZCH6 (Mar '26)", hankinsonBasis: -0.47 };
+            return { futuresPrice: 4.3, contractMonth: "ZCH6 (Mar '26)", benchmarkBasis: -0.47 };
     }
 }
 
@@ -137,7 +137,7 @@ function buildOracle(crop: CropType) {
     return {
         futuresPrice: defaults.futuresPrice,
         contractMonth: defaults.contractMonth,
-        hankinsonBasis: defaults.hankinsonBasis,
+        benchmarkBasis: defaults.benchmarkBasis,
         centralRegionBasis: crop === 'Yellow Corn' ? -0.6 : -0.25,
         lastUpdated: new Date().toISOString(),
     };

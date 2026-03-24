@@ -10,32 +10,85 @@ import { marketDataService } from '../marketDataService';
  *   Cash Price = Futures + Basis
  *   Net Price  = Cash Price - Freight
  * 
- * Ensures no buyer has impossible/nonsensical pricing.
+ * Tests crop separation: Hankinson=Corn, Enderlin=Sunflowers
  */
 
 describe('Pricing Accuracy', () => {
     const futuresPrice = marketDataService.getCurrentFuturesPrice();
-    const hankinson = marketDataService.getHankinsonBenchmark();
+    const cornBenchmark = marketDataService.getBenchmark('Yellow Corn');
+    const sunflowerBenchmark = marketDataService.getBenchmark('Sunflowers');
 
     describe('Market Data Sanity', () => {
-        it('futures price should be within rational bounds ($3.00 - $8.00)', () => {
+        it('corn futures price should be within rational bounds ($3.00 - $8.00)', () => {
             expect(futuresPrice).toBeGreaterThanOrEqual(3.00);
             expect(futuresPrice).toBeLessThanOrEqual(8.00);
         });
 
-        it('Hankinson basis should be negative (typical for rural origin)', () => {
-            expect(hankinson.basis).toBeLessThan(0);
+        it('corn benchmark (Hankinson) basis should be negative', () => {
+            expect(cornBenchmark.basis).toBeLessThan(0);
         });
 
-        it('Hankinson cash price should equal futures + basis', () => {
-            const expected = parseFloat((futuresPrice + hankinson.basis).toFixed(2));
-            expect(hankinson.cashPrice).toBe(expected);
+        it('corn benchmark cash price should equal futures + basis', () => {
+            const expected = parseFloat((futuresPrice + cornBenchmark.basis).toFixed(2));
+            expect(cornBenchmark.cashPrice).toBe(expected);
+        });
+
+        it('sunflower benchmark (Enderlin) should be in $/cwt range ($18-$28)', () => {
+            expect(sunflowerBenchmark.cashPrice).toBeGreaterThanOrEqual(18.00);
+            expect(sunflowerBenchmark.cashPrice).toBeLessThanOrEqual(28.00);
         });
 
         it('contract month should be a valid string', () => {
             const contract = marketDataService.getActiveContract();
             expect(contract).toBeTruthy();
             expect(contract.length).toBeGreaterThan(2);
+        });
+    });
+
+    // ── Crop Separation Tests ──
+    // These ensure Hankinson is NEVER used for sunflowers and Enderlin is NEVER used for corn
+
+    describe('Crop Benchmark Separation', () => {
+        it('corn benchmark should be Hankinson', () => {
+            expect(cornBenchmark.name).toBe('Hankinson');
+        });
+
+        it('sunflower benchmark should be Enderlin ADM', () => {
+            expect(sunflowerBenchmark.name).toBe('Enderlin ADM');
+        });
+
+        it('corn benchmark freight should be $0.30 (truck from Campbell)', () => {
+            expect(cornBenchmark.freight).toBe(0.30);
+        });
+
+        it('sunflower benchmark freight should be $0 (farmers drive there)', () => {
+            expect(sunflowerBenchmark.freight).toBe(0);
+        });
+
+        it('corn price unit should be $/bu', () => {
+            const data = marketDataService.getCropMarketData('Yellow Corn');
+            expect(data.priceUnit).toBe('$/bu');
+        });
+
+        it('sunflower price unit should be $/cwt', () => {
+            const data = marketDataService.getCropMarketData('Sunflowers');
+            expect(data.priceUnit).toBe('$/cwt');
+        });
+
+        it('sunflower and corn benchmarks should be completely different', () => {
+            expect(sunflowerBenchmark.name).not.toBe(cornBenchmark.name);
+            // Sunflower price (~$23/cwt) should be way higher than corn (~$4/bu)
+            expect(sunflowerBenchmark.cashPrice).toBeGreaterThan(cornBenchmark.cashPrice * 3);
+        });
+
+        it('all 5 crops should return valid benchmark data', () => {
+            const crops = ['Yellow Corn', 'White Corn', 'Soybeans', 'Wheat', 'Sunflowers'];
+            for (const crop of crops) {
+                const bm = marketDataService.getBenchmark(crop);
+                expect(bm.cashPrice).toBeGreaterThan(0);
+                expect(bm.name).toBeTruthy();
+                expect(bm.freight).toBeGreaterThanOrEqual(0);
+            }
         });
     });
 
@@ -58,16 +111,16 @@ describe('Pricing Accuracy', () => {
             });
         });
 
-        it('cash price should be within realistic range ($2.00 - $22.00)', () => {
+        it('cash price should be within realistic range ($2.00 - $28.00)', () => {
             buyers.forEach(buyer => {
                 expect(buyer.cashPrice).toBeGreaterThanOrEqual(2.00);
-                expect(buyer.cashPrice).toBeLessThanOrEqual(22.00); // Sunflowers can be ~$18.50/bu
+                expect(buyer.cashPrice).toBeLessThanOrEqual(28.00); // Sunflowers ~$23/cwt
             });
         });
     });
 
     describe('Freight-to-Net Price Relationship', () => {
-        const buyers = FALLBACK_BUYERS_DATA; // Define buyers here for the new tests
+        const buyers = FALLBACK_BUYERS_DATA;
 
         it('Net price should equal cash price minus freight cost', () => {
             buyers.forEach(buyer => {
@@ -104,7 +157,14 @@ describe('Pricing Accuracy', () => {
 
         it('MN (local) buyers should have the lowest freight', () => {
             const mnRate = bnsfService.calculateRate('MN', 'Hankinson');
-            expect(mnRate.ratePerBushel).toBeLessThan(0.20); // $350/car + $250 FSC = $600 / 4000 = $0.15/bu
+            expect(mnRate.ratePerBushel).toBeLessThan(0.20);
+        });
+
+        it('sunflower freight per bu should be lower than corn (more bu/car)', () => {
+            const cornRate = bnsfService.calculateRate('ND', 'Enderlin', undefined, undefined, 'Yellow Corn');
+            const sunflowerRate = bnsfService.calculateRate('ND', 'Enderlin', undefined, undefined, 'Sunflowers');
+            // Sunflowers: 8800 bu/car vs Corn: 4000 bu/car → lower per-bu freight
+            expect(sunflowerRate.ratePerBushel).toBeLessThan(cornRate.ratePerBushel);
         });
     });
 });
@@ -123,6 +183,34 @@ describe('Cross-Crop Data Integrity', () => {
         expect(cornBuyers.length).toBeGreaterThan(0);
     });
 
+    it('Sunflower buyers should exist', () => {
+        const sfBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Sunflowers');
+        expect(sfBuyers.length).toBeGreaterThan(0);
+    });
+
+    it('corn buyers and sunflower buyers should have NO overlap', () => {
+        const cornBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Yellow Corn');
+        const sfBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Sunflowers');
+        const cornNames = new Set(cornBuyers.map(b => b.name));
+        sfBuyers.forEach(b => {
+            expect(cornNames.has(b.name)).toBe(false);
+        });
+    });
+
+    it('Hankinson should NOT appear as a sunflower buyer', () => {
+        const sfBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Sunflowers');
+        sfBuyers.forEach(b => {
+            expect(b.name.toLowerCase()).not.toContain('hankinson');
+        });
+    });
+
+    it('Enderlin should NOT appear as a corn buyer', () => {
+        const cornBuyers = FALLBACK_BUYERS_DATA.filter(b => b.cropType === 'Yellow Corn');
+        cornBuyers.forEach(b => {
+            expect(b.name.toLowerCase()).not.toContain('enderlin');
+        });
+    });
+
     it('organic flag should be boolean for every buyer', () => {
         FALLBACK_BUYERS_DATA.forEach(buyer => {
             expect(typeof buyer.organic).toBe('boolean');
@@ -132,7 +220,6 @@ describe('Cross-Crop Data Integrity', () => {
     it('organic buyers must be a small minority', () => {
         const organicCount = FALLBACK_BUYERS_DATA.filter(b => b.organic).length;
         const totalCount = FALLBACK_BUYERS_DATA.length;
-        // Organic should be less than 20% of total buyers (realistic)
         expect(organicCount / totalCount).toBeLessThan(0.20);
     });
 });

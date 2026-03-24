@@ -208,7 +208,7 @@ export const usdaMarketService = {
                 const parsedAdjustments = parseUSDAReport(response.data);
                 if (Object.keys(parsedAdjustments).length > 0) {
                     cacheService.set('usda', USDA_CACHE_KEY, parsedAdjustments, CACHE_TTL.USDA_MS);
-                    console.log('Loaded USDA market data via API proxy');
+                    // USDA market data loaded via API proxy
                     return parsedAdjustments;
                 }
             }
@@ -241,7 +241,7 @@ export const usdaMarketService = {
             source: 'cached'
         };
         cacheService.set('usda', USDA_CACHE_KEY, current, CACHE_TTL.USDA_MS);
-        console.log(`Updated ${region} basis to ${basis >= 0 ? '+' : ''}${basis.toFixed(2)}`);
+        // Region basis updated silently
     },
 
     // Get data freshness info

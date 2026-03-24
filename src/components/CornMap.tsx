@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { HeatmapPoint, Buyer, Transloader } from '../types';
 import { RAIL_LINES } from '../services/railService';
+import { bnsfOpportunitiesService, BNSFOpportunity } from '../services/bnsfScraperService';
 import { BuyerMarkers } from './BuyerMarkers';
 import { OpportunityDrawer } from './OpportunityDrawer';
 
@@ -15,6 +16,7 @@ interface CornMapProps {
     showHeatmap: boolean;
     showBuyers: boolean;
     showRail: boolean;
+    showBnsfOpportunities?: boolean;
     showTransloaders?: boolean;
     buyers?: Buyer[];
     heatmapData?: HeatmapPoint[]; // Live heatmap data
@@ -62,6 +64,7 @@ export const CornMap: React.FC<CornMapProps> = ({
     showHeatmap,
     showBuyers,
     showRail,
+    showBnsfOpportunities = true,
     showTransloaders = true,
     buyers = [],
     heatmapData = [],
@@ -74,8 +77,9 @@ export const CornMap: React.FC<CornMapProps> = ({
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
     const lastAutoFocusKey = useRef<string>('');
-    const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | Transloader | null>(null);
+    const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | Transloader | BNSFOpportunity | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
+    const [bnsfLayersLoaded, setBnsfLayersLoaded] = useState(false);
     const [zoomedState, setZoomedState] = useState<string | null>(null);
 
     // Compute State Metrics for Coloring/Blinking
@@ -189,7 +193,7 @@ export const CornMap: React.FC<CornMapProps> = ({
             }, 'state-border-highlight');
 
             // --- Premium Rail Network Layers (Glow + Core + Flow) ---
-            fetch('/data/us-railroads.geojson')
+            fetch('/data/bnsf-full-network.geojson')
                 .then(response => response.ok ? response.json() : Promise.reject('GeoJSON not available'))
                 .then(geojsonData => {
                     if (!map.current) return;
@@ -203,90 +207,85 @@ export const CornMap: React.FC<CornMapProps> = ({
                     }
 
                     // 1. Outer Glow Layer (Atmospheric effect)
-                    map.current.addLayer({
-                        id: 'rail-glow',
-                        type: 'line',
-                        source: 'us-rail-network',
-                        layout: { 'line-join': 'round', 'line-cap': 'round' },
-                        paint: {
-                            'line-color': [
-                                'match', ['get', 'owner'],
-                                'BNSF', '#ff5500', // Intense Neon Orange for BNSF
-                                'UP', '#fde047',   // Yellow-300
-                                'CSX', '#60a5fa',  // Blue-400
-                                'NS', '#818cf8',   // Indigo-400
-                                'CN', '#f87171',   // Red-400
-                                'CPKC', '#c084fc', // Purple-400
-                                '#94a3b8'          // Slate-400
-                            ],
-                            'line-width': [
-                                'interpolate', ['linear'], ['zoom'],
-                                3, 0.5,
-                                6, 2,
-                                10, 6
-                            ],
-                            'line-opacity': [
-                                'interpolate', ['linear'], ['zoom'],
-                                3, 0.05, // Almost invisible at national level to avoid hairball
-                                6, 0.2,
-                                10, 0.4
-                            ],
-                            'line-blur': 4
-                        }
-                    });
+                    if (!map.current.getLayer('rail-glow')) {
+                        map.current.addLayer({
+                            id: 'rail-glow',
+                            type: 'line',
+                            source: 'us-rail-network',
+                            layout: { 'line-join': 'round', 'line-cap': 'round' },
+                            paint: {
+                                'line-color': '#ff5500', // Authentic BNSF Orange Glow
+                                'line-width': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    3, 2,     // Visible at national zoom
+                                    6, 8,     // Distinct regionally
+                                    10, 20    // Very thick glow locally
+                                ],
+                                'line-opacity': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    3, 0.25,
+                                    6, 0.35,
+                                    10, 0.5
+                                ],
+                                'line-blur': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    3, 2,
+                                    6, 6,
+                                    10, 12
+                                ]
+                            }
+                        });
+                    }
 
                     // 2. Core Line Layer (Sharp definition depending on zoom)
-                    map.current.addLayer({
-                        id: 'rail-core',
-                        type: 'line',
-                        source: 'us-rail-network',
-                        layout: { 'line-join': 'round', 'line-cap': 'round' },
-                        paint: {
-                            'line-color': [
-                                'match', ['get', 'owner'],
-                                'BNSF', '#ffffff',
-                                'UP', '#eab308',
-                                'CSX', '#3b82f6',
-                                'NS', '#6366f1',
-                                'CN', '#ef4444',
-                                'CPKC', '#a855f7',
-                                '#64748b'
-                            ],
-                            'line-width': [
-                                'interpolate', ['linear'], ['zoom'],
-                                3, 0.2, // Ultra-thin at national level
-                                6, 1,
-                                12, 3
-                            ],
-                            'line-opacity': [
-                                'interpolate', ['linear'], ['zoom'],
-                                3, 0.1, // Faint at national level
-                                6, 0.5,
-                                10, 0.95
-                            ]
-                        }
-                    });
+                    if (!map.current.getLayer('rail-core')) {
+                        map.current.addLayer({
+                            id: 'rail-core',
+                            type: 'line',
+                            source: 'us-rail-network',
+                            layout: { 'line-join': 'round', 'line-cap': 'round' },
+                            paint: {
+                                'line-color': '#ffffff', // Crisp white core for BNSF tracks
+                                'line-width': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    3, 0.8,   // Crisp and legible far out
+                                    6, 2,
+                                    12, 4
+                                ],
+                                'line-opacity': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    3, 0.8,
+                                    6, 0.95,
+                                    10, 1.0
+                                ]
+                            }
+                        });
+                    }
 
                     // 3. Flow Animation Layer (Movement effect for mainlines)
-                    map.current.addLayer({
-                        id: 'rail-flow',
-                        type: 'line',
-                        source: 'us-rail-network',
-                        filter: ['==', 'type', 'mainline'], // Only animate mainlines
-                        layout: { 'line-join': 'round', 'line-cap': 'round' },
-                        paint: {
-                            'line-color': '#ffffff',
-                            'line-width': [
-                                'interpolate', ['linear'], ['zoom'],
-                                3, 0.5,
-                                8, 2
-                            ],
-                            'line-opacity': 0.4,
-                            'line-dasharray': [0, 4, 3] // Animated via setPaintProperty
-                        }
-                    });
+                    if (!map.current.getLayer('rail-flow')) {
+                        map.current.addLayer({
+                            id: 'rail-flow',
+                            type: 'line',
+                            source: 'us-rail-network',
+                            // Filter for only 'main' trackage in the new NTAD schema, fallback if not main
+                            // Since new schema uses NET=M for mainline, but we'll animate everything to look dense and alive.
+                            layout: { 'line-join': 'round', 'line-cap': 'round' },
+                            paint: {
+                                'line-color': '#ffb700', // BNSF secondary yellow/gold flow
+                                'line-width': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    3, 1.5,    // More visible "data flowing" effect
+                                    8, 4
+                                ],
+                                'line-opacity': 0.8,
+                                'line-dasharray': [0, 6, 4] // Animated via setPaintProperty
+                            }
+                        });
+                    }
                 })
-                .catch(() => {
+                .catch((e) => {
+                    console.error("Rail GeoJSON failed:", e);
                     console.warn("Using fallback rail styling");
                     // Fallback to static RAIL_LINES data
                     if (!map.current) return;
@@ -309,9 +308,9 @@ export const CornMap: React.FC<CornMapProps> = ({
                         source: 'rail-lines',
                         layout: { 'line-join': 'round', 'line-cap': 'round' },
                         paint: {
-                            'line-color': '#f97316',
+                            'line-color': '#ff5500', // Authentic BNSF Orange
                             'line-width': 2,
-                            'line-opacity': 0.6
+                            'line-opacity': 0.8
                         }
                     });
                 });
@@ -442,6 +441,95 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             }, 'corn-point-layer'); // Place exactly below the main point
 
+            // --- BNSF Opportunities Layer (Scraped Data) ---
+            bnsfOpportunitiesService.getLiveOpportunities().then(bnsfOpps => {
+                if (!map.current) return;
+
+                const bnsfGeoJson = {
+                    type: 'FeatureCollection',
+                    features: bnsfOpps.map(opp => ({
+                        type: 'Feature',
+                        properties: opp,
+                        geometry: { type: 'Point', coordinates: [opp.location.lng, opp.location.lat] }
+                    }))
+                };
+
+                map.current.addSource('bnsf-opportunities', {
+                    type: 'geojson',
+                    data: bnsfGeoJson as any,
+                    cluster: true,
+                    clusterMaxZoom: 12,
+                    clusterRadius: 35
+                });
+
+                // Clusters Layer
+                map.current.addLayer({
+                    id: 'bnsf-opp-clusters',
+                    type: 'circle',
+                    source: 'bnsf-opportunities',
+                    filter: ['has', 'point_count'],
+                    paint: {
+                        'circle-color': '#d97706', // Darker amber for clusters
+                        'circle-radius': ['step', ['get', 'point_count'], 15, 10, 20, 50, 25]
+                    }
+                });
+
+                // Cluster Count Text
+                map.current.addLayer({
+                    id: 'bnsf-opp-cluster-count',
+                    type: 'symbol',
+                    source: 'bnsf-opportunities',
+                    filter: ['has', 'point_count'],
+                    layout: {
+                        'text-field': '{point_count_abbreviated}',
+                        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                        'text-size': 12
+                    },
+                    paint: {
+                        'text-color': '#111827'
+                    }
+                });
+
+                // Core Marker (Unclustered)
+                map.current.addLayer({
+                    id: 'bnsf-opp-layer',
+                    type: 'circle',
+                    source: 'bnsf-opportunities',
+                    filter: ['!', ['has', 'point_count']],
+                    minzoom: 3,
+                    paint: {
+                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 6, 10, 10],
+                        'circle-color': '#f59e0b', // Gold/Amber
+                        'circle-stroke-color': '#b45309',
+                        'circle-stroke-width': 2,
+                        'circle-opacity': 0.95,
+                        'circle-pitch-alignment': 'map',
+                        'circle-pitch-scale': 'map'
+                    }
+                });
+
+                // Outer Glow Pulse (Unclustered)
+                map.current.addLayer({
+                    id: 'bnsf-opp-pulse',
+                    type: 'circle',
+                    source: 'bnsf-opportunities',
+                    filter: ['!', ['has', 'point_count']],
+                    minzoom: 3,
+                    paint: {
+                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 12, 10, 24],
+                        'circle-color': '#f59e0b',
+                        'circle-opacity': 0.1, // Animated
+                        'circle-pitch-alignment': 'map',
+                        'circle-pitch-scale': 'map'
+                    }
+                }, 'bnsf-opp-layer');
+
+                // Signal that the async layers are ready so toggles work
+                setBnsfLayersLoaded(true);
+
+            }).catch(console.error);
+            // ----------------------------------------------
+
             // Fetch and styled BNSF Transloaders
             fetch('/data/bnsf-transloaders.geojson')
                 .then(res => res.ok ? res.json() : null)
@@ -515,6 +603,30 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
+            map.current?.on('click', 'bnsf-opp-layer', (e) => {
+                e.originalEvent.stopPropagation();
+                if (e.features && e.features[0]) {
+                    // Reconstruct the nested location object that mapbox flattening destroys
+                    const props = e.features[0].properties as any;
+                    const opp: BNSFOpportunity = {
+                        ...props,
+                        location: {
+                            lat: props.lat ?? 0,
+                            lng: props.lng ?? 0,
+                            city: props.city ?? 'Unknown',
+                            state: props.state ?? 'Unknown'
+                        },
+                        // In Mapbox properties, nested objects get flattened or stringified. 
+                        // But since we just want to pass the data, we'll parse it if it was stringified.
+                    };
+                    // Mapbox stringifies nested JSON, so we handle location manually here 
+                    if (typeof props.location === 'string') {
+                        opp.location = JSON.parse(props.location);
+                    }
+                    setSelectedItem(opp);
+                }
+            });
+
             // Cluster Click Handler
             map.current?.on('click', 'clusters', (e) => {
                 const features = map.current?.queryRenderedFeatures(e.point, {
@@ -522,6 +634,29 @@ export const CornMap: React.FC<CornMapProps> = ({
                 });
                 const clusterId = features?.[0].properties?.cluster_id;
                 const source = map.current?.getSource('corn-heat') as mapboxgl.GeoJSONSource;
+
+                if (clusterId && source) {
+                    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+                        if (err || !map.current) return;
+
+                        const geom = features[0].geometry;
+                        if (geom.type === 'Point') {
+                            map.current.easeTo({
+                                center: geom.coordinates as [number, number],
+                                zoom: zoom ?? undefined
+                            });
+                        }
+                    });
+                }
+            });
+
+            // BNSF Cluster Click Handler
+            map.current?.on('click', 'bnsf-opp-clusters', (e) => {
+                const features = map.current?.queryRenderedFeatures(e.point, {
+                    layers: ['bnsf-opp-clusters']
+                });
+                const clusterId = features?.[0].properties?.cluster_id;
+                const source = map.current?.getSource('bnsf-opportunities') as mapboxgl.GeoJSONSource;
 
                 if (clusterId && source) {
                     source.getClusterExpansionZoom(clusterId, (err, zoom) => {
@@ -550,6 +685,20 @@ export const CornMap: React.FC<CornMapProps> = ({
                 if (map.current) map.current.getCanvas().style.cursor = 'pointer';
             });
             map.current?.on('mouseleave', 'corn-point-layer', () => {
+                if (map.current) map.current.getCanvas().style.cursor = '';
+            });
+
+            map.current?.on('mouseenter', 'bnsf-opp-layer', () => {
+                if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+            });
+            map.current?.on('mouseleave', 'bnsf-opp-layer', () => {
+                if (map.current) map.current.getCanvas().style.cursor = '';
+            });
+
+            map.current?.on('mouseenter', 'bnsf-opp-clusters', () => {
+                if (map.current) map.current.getCanvas().style.cursor = 'pointer';
+            });
+            map.current?.on('mouseleave', 'bnsf-opp-clusters', () => {
                 if (map.current) map.current.getCanvas().style.cursor = '';
             });
 
@@ -582,6 +731,12 @@ export const CornMap: React.FC<CornMapProps> = ({
                     map.current.setPaintProperty('transloader-pulse', 'circle-opacity', transPulse);
                 }
 
+                // Pulse for BNSF Opportunities
+                if (map.current?.getLayer('bnsf-opp-pulse')) {
+                    const oppPulse = 0.08 + (intensity * 0.4);
+                    map.current.setPaintProperty('bnsf-opp-pulse', 'circle-opacity', oppPulse);
+                }
+
                 // 2. Rail Flow Animation (Pulse)
                 if (map.current?.getLayer('rail-flow')) {
                     // Pulsing opacity to simulate active data flow
@@ -597,10 +752,10 @@ export const CornMap: React.FC<CornMapProps> = ({
 
     // Toggle layers visibility
     useEffect(() => {
-        if (!map.current) return;
+        if (!map.current || !styleLoaded) return;
 
         const setVisibility = (layerId: string, visible: boolean) => {
-            if (map.current?.getLayer(layerId)) {
+            if (map.current && map.current.getLayer(layerId)) {
                 map.current.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
             }
         };
@@ -616,12 +771,20 @@ export const CornMap: React.FC<CornMapProps> = ({
 
         setVisibility('transloader-layer', !!showTransloaders);
         setVisibility('transloader-pulse', !!showTransloaders);
+
+        if (bnsfLayersLoaded) {
+            setVisibility('bnsf-opp-layer', !!showBnsfOpportunities);
+            setVisibility('bnsf-opp-pulse', !!showBnsfOpportunities);
+            setVisibility('bnsf-opp-clusters', !!showBnsfOpportunities);
+            setVisibility('bnsf-opp-cluster-count', !!showBnsfOpportunities);
+        }
+
         // state-glow-layer logic if needed, or always valid
         if (map.current.getLayer('state-border')) {
             map.current.setLayoutProperty('state-border', 'visibility', 'visible');
         }
 
-    }, [showHeatmap, showRail, showTransloaders]);
+    }, [showHeatmap, showRail, showTransloaders, showBnsfOpportunities, styleLoaded, bnsfLayersLoaded]);
 
     // Update Highlight Layer based on Top States
     useEffect(() => {

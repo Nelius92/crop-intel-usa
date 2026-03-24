@@ -130,7 +130,7 @@ export class GeminiService {
             'White Corn': 'Masa Flour Mills (TX, CA), Food Processors',
             'Soybeans': 'Crush Plants (ADM, Bunge), Export Terminals',
             'Wheat': 'Flour Mills, Export Terminals',
-            'Sunflowers': 'Crush Plants (ND, SD), Bird Food Processors'
+            'Sunflowers': 'Crush Plants (ND, SD, KS, CO), Bird Food Processors, Confection Handlers'
         };
 
         const targetBuyers = buyerContext[crop] || 'Agricultural Buyers';

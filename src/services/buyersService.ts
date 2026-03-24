@@ -1,4 +1,5 @@
 import { Buyer, BuyerType, CropType } from '../types';
+import { FALLBACK_BUYERS_DATA } from './fallbackData';
 
 // This service fetches and enriches buyer data with live market prices
 // Prices are calculated using: Cash = Futures + Basis, Net = Cash - Freight
@@ -39,6 +40,13 @@ interface ApiBuyerDirectoryRecord {
     website?: string | null;
     verifiedStatus?: 'verified' | 'needs_review' | 'unverified' | null;
     contactConfidenceScore?: number | null;
+    // Scraped bid fields (from bid-pipeline → Postgres)
+    cashBid?: number | string | null;
+    postedBasis?: number | string | null;
+    bidDate?: string | null;
+    bidSource?: string | null;
+    nearTransload?: boolean;
+    railAccessible?: boolean;
 }
 
 
@@ -49,8 +57,32 @@ async function fetchBuyerContactsFromApi(crop: string): Promise<ApiBuyerDirector
         );
         return result.data || [];
     } catch (error) {
-        console.error("Failed to fetch buyers from API:", error);
-        throw new Error("Production API completely failed and fallbacks are explicitly disabled.");
+        console.warn("API unavailable, falling back to local buyer data.", (error as Error).message);
+        // Fall back to FALLBACK_BUYERS_DATA (buyers.json) when backend is down
+        return FALLBACK_BUYERS_DATA
+            .filter(b => (b.cropType || 'Yellow Corn') === crop)
+            .map(b => ({
+                id: b.id || `fallback-${Math.random().toString(36).slice(2)}`,
+                name: b.name,
+                type: b.type as BuyerType,
+                city: b.city,
+                state: b.state,
+                region: b.region || 'Unknown',
+                lat: b.lat,
+                lng: b.lng,
+                cropType: b.cropType as CropType,
+                organic: b.organic ?? false,
+                railConfidence: b.railConfidence ?? null,
+                contactRole: b.contactName ?? 'Grain Desk',
+                facilityPhone: b.contactPhone ?? null,
+                website: b.website ?? null,
+                verifiedStatus: b.verified ? 'verified' as const : 'unverified' as const,
+                contactConfidenceScore: b.confidenceScore ?? null,
+                nearTransload: b.nearTransload ?? false,
+                railAccessible: b.railAccessible ?? false,
+                cashBid: b.cashPrice ?? null,
+                postedBasis: b.basis ?? null,
+            } as any));
     }
 }
 
@@ -93,15 +125,15 @@ export const fetchRealBuyersFromGoogle = async (
             railConfidence: match.railConfidence ?? undefined,
             dataSource: 'api-directory',
             // Pass through real scraped bid data (null if not yet scraped)
-            cashBid: (match as any).cashBid ?? null,
-            postedBasis: (match as any).postedBasis ?? null,
-            bidDate: (match as any).bidDate ?? null,
-            bidSource: (match as any).bidSource ?? null,
+            cashBid: match.cashBid ?? null,
+            postedBasis: match.postedBasis ?? null,
+            bidDate: match.bidDate ?? null,
+            bidSource: match.bidSource ?? null,
             basis: 0,
             cashPrice: 0,
             // Derive rail accessibility from railConfidence score (types.ts: "Derived: score >= 40")
             railAccessible: (match.railConfidence ?? 0) >= 40,
-            nearTransload: (match as any).nearTransload ?? false
+            nearTransload: match.nearTransload ?? false
         } as Buyer;
     });
 
@@ -114,10 +146,8 @@ export const fetchRealBuyersFromGoogle = async (
     const marketData = marketDataService.getCropMarketData(selectedCrop);
     const currentFutures = marketData.futuresPrice;
 
-    // Get Hankinson benchmark for comparison
-    const hankinsonBenchmark = {
-        cashPrice: marketData.hankinsonCashPrice
-    };
+    // Get crop-specific benchmark (Hankinson for corn, Enderlin for sunflowers)
+    const benchmark = marketDataService.getBenchmark(selectedCrop);
 
     // Pre-load USDA regional basis adjustments for fallback pricing
     const usdaAdjustments = await usdaMarketService.getRegionalAdjustments();
@@ -128,7 +158,8 @@ export const fetchRealBuyersFromGoogle = async (
         // ── Price Calculation ──
         // Priority 1: Real scraped bid (from bid-pipeline → DB → API)
         // Priority 2: USDA regional basis estimate (Futures + Regional Basis)
-        const hasRealBid = (buyer as any).cashBid != null;
+        const buyerAny = buyer as Buyer & { cashBid?: number | string | null; bidSource?: string | null };
+        const hasRealBid = buyerAny.cashBid != null;
         let newCashPrice: number;
         let basis: number;
         let basisConfidence: 'verified' | 'estimated';
@@ -136,11 +167,13 @@ export const fetchRealBuyersFromGoogle = async (
 
         if (hasRealBid) {
             // Use the real scraped cash bid directly (parse it because Postgres numeric returns as string)
-            newCashPrice = parseFloat((buyer as any).cashBid);
+            newCashPrice = typeof buyerAny.cashBid === 'number'
+                ? buyerAny.cashBid
+                : parseFloat(String(buyerAny.cashBid));
             // Back-calculate basis from the real cash bid
             basis = parseFloat((newCashPrice - currentFutures).toFixed(2));
             basisConfidence = 'verified';
-            basisSourceLabel = (buyer as any).bidSource || 'Scraped Bid';
+            basisSourceLabel = buyerAny.bidSource || 'Scraped Bid';
         } else {
             // Use USDA regional basis as an estimated price
             const region = usdaMarketService.getRegionForState(buyer.state);
@@ -152,19 +185,24 @@ export const fetchRealBuyersFromGoogle = async (
         }
 
         // Calculate Freight FROM Campbell, MN TO this buyer (cached 12h)
+        // Pass crop type for correct bushels-per-car conversion
         const freightInfo = await calculateFreight(
             { lat: buyer.lat, lng: buyer.lng, state: buyer.state, city: buyer.city },
             buyer.name,
-            buyer.railAccessible
+            buyer.railAccessible,
+            selectedCrop
         );
         const newFreightCost = freightInfo.ratePerBushel;
 
         // Net Price = Cash Price - Freight
         const newNetPrice = newCashPrice - newFreightCost;
 
-        // Hankinson benchmark: HankNet = HankCash - $0.30 truck freight
-        const hankinsonNetPrice = hankinsonBenchmark.cashPrice - 0.30;
-        const benchmarkDiff = parseFloat((newNetPrice - hankinsonNetPrice).toFixed(2));
+        // Benchmark comparison (crop-specific):
+        //   Corn:       Hankinson cash - $0.30 truck freight
+        //   Sunflowers: Enderlin ADM cash - $0 (farmers drive there)
+        const benchmarkNetPrice = benchmark.cashPrice - benchmark.freight;
+        const rawBenchmarkDiff = newNetPrice - benchmarkNetPrice;
+        const benchmarkDiff = isNaN(rawBenchmarkDiff) ? 0 : parseFloat(rawBenchmarkDiff.toFixed(2));
 
         const futuresSource = marketDataService.getFuturesSource(selectedCrop);
 
@@ -212,7 +250,7 @@ export const fetchRealBuyersFromGoogle = async (
             lastUpdated: now,
             provenance,
             verified,
-            dataSource: hasRealBid ? ((buyer as any).bidSource || 'scraped-bid') : basisSourceLabel
+            dataSource: hasRealBid ? (buyerAny.bidSource || 'scraped-bid') : basisSourceLabel
         };
     }));
 

@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown } from 'lucide-react';
+import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown, User, Clock } from 'lucide-react';
 import { HeatmapPoint, Buyer, Transloader, isDataStale } from '../types';
+import { BNSFOpportunity } from '../services/bnsfScraperService';
 import { SourceLabel, formatTimeAgo } from './TrustBadge';
 import { getCorridorName } from '../services/railConfidenceService';
+import { marketDataService } from '../services/marketDataService';
 
 interface OpportunityDrawerProps {
-    item: HeatmapPoint | Buyer | Transloader | null;
+    item: HeatmapPoint | Buyer | Transloader | BNSFOpportunity | null;
     onClose: () => void;
 }
 
 export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onClose }) => {
     const isBuyer = (item: any): item is Buyer => 'type' in item && ['elevator', 'processor', 'feedlot', 'shuttle', 'export', 'river', 'ethanol'].includes(item.type);
     const isTransloader = (item: any): item is Transloader => 'type' in item && item.type === 'transload';
+    const isBnsfOpportunity = (item: any): item is BNSFOpportunity => item && 'livePriceBase' in item;
     const [showExplain, setShowExplain] = useState(false);
 
     if (!item) return null;
@@ -39,10 +42,10 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                             </button>
 
                             <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 pr-12">
-                                {isBuyer(item) || isTransloader(item) ? item.name : 'Market Opportunity'}
+                                {isBuyer(item) || isTransloader(item) || isBnsfOpportunity(item) ? item.name : 'Market Opportunity'}
                             </h2>
                             <p className="text-zinc-400 text-sm">
-                                {isBuyer(item) || isTransloader(item) ? `${item.city}, ${item.state}` : (item.regionName || `Region: ${item.lat.toFixed(2)}, ${item.lng.toFixed(2)}`)}
+                                {isBuyer(item) || isTransloader(item) ? `${item.city}, ${item.state}` : isBnsfOpportunity(item) ? `${item.location.city}, ${item.location.state}` : (item.regionName || `Region: ${item.lat.toFixed(2)}, ${item.lng.toFixed(2)}`)}
                             </p>
                         </div>
 
@@ -85,7 +88,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                                 );
                                             })()}
                                             {item.benchmarkDiff !== undefined ? (
-                                                <DataCard label="vs Hank" value={`${item.benchmarkDiff >= 0 ? '+' : ''}${item.benchmarkDiff.toFixed(2)}`} color={item.benchmarkDiff >= 0 ? 'text-green-400' : 'text-red-400'} />
+                                                <DataCard label="vs Benchmark" value={isNaN(item.benchmarkDiff) ? 'N/A' : `${item.benchmarkDiff >= 0 ? '+' : ''}${item.benchmarkDiff.toFixed(2)}`} color={isNaN(item.benchmarkDiff) ? 'text-slate-500' : item.benchmarkDiff >= 0 ? 'text-green-400' : 'text-red-400'} />
                                             ) : (
                                                 <DataCard label="Region" value={item.region} />
                                             )}
@@ -96,6 +99,19 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                             <DataCard label="Commodities" value={item.commodities?.[0] || 'General'} />
                                             <DataCard label="State" value={item.state || 'N/A'} />
                                             <DataCard label="Type" value="Transload" />
+                                        </>
+                                    ) : isBnsfOpportunity(item) ? (
+                                        <>
+                                            <DataCard label="Live Rail Bid" value={`$${(item as any).currentPrice?.toFixed(2) || item.livePriceBase.toFixed(2)}`} color="text-red-400" highlight />
+                                            <DataCard label="Est. Freight" value={`-$${item.freightRateOverride.toFixed(2)}`} color="text-red-400" icon={<Train size={14} />} />
+                                            <DataCard label="Facility Type" value={(item.category || '').replace('_', ' ').toUpperCase()} />
+                                            <DataCard label="Capacity" value={item.capacity || 'Unknown'} />
+                                            {item.managerName && (
+                                                <DataCard label="Manager" value={item.managerName} icon={<User size={14} />} />
+                                            )}
+                                            {item.operatingHours && (
+                                                <DataCard label="Hours" value={item.operatingHours} icon={<Clock size={14} />} />
+                                            )}
                                         </>
                                     ) : (
                                         <>
@@ -220,6 +236,50 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                 </>
                             )}
 
+                            {/* BNSF Opportunity Actions */}
+                            {isBnsfOpportunity(item) && (
+                                <>
+                                    <div className="h-px bg-zinc-800" />
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                                        <ActionButton
+                                            icon={<Navigation size={20} />}
+                                            label="Directions"
+                                            active
+                                            onClick={() => {
+                                                const query = encodeURIComponent(`${item.name} ${item.location.city} ${item.location.state}`);
+                                                window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+                                            }}
+                                        />
+                                        <ActionButton
+                                            icon={<Phone size={20} />}
+                                            label="Call"
+                                            onClick={() => window.location.href = `tel:${item.contactInfo}`}
+                                            disabled={!item.contactInfo}
+                                        />
+                                        <ActionButton
+                                            icon={<Globe size={20} />}
+                                            label="Website"
+                                            onClick={() => {
+                                                const url = item.website?.startsWith('http') ? item.website : `https://${item.website}`;
+                                                window.open(url, '_blank');
+                                            }}
+                                            disabled={!item.website}
+                                        />
+                                        <ActionButton
+                                            icon={<Share2 size={20} />}
+                                            label="Share"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(`${item.name} (${item.category}): ${item.contactInfo}`);
+                                                alert('Opportunity info copied to clipboard!');
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="mt-2 text-xs text-zinc-500 font-mono">
+                                        Source: BNSF Firecrawl Scrape / Verified Target
+                                    </div>
+                                </>
+                            )}
+
                             {/* Transloader About Section */}
                             {isTransloader(item) && (
                                 <div>
@@ -230,6 +290,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                     </p>
                                 </div>
                             )}
+
                         </div>
                     </div>
                 </motion.div>
@@ -241,8 +302,10 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
 // ─── Calculation Breakdown (Trust Layer core) ─────────────────────
 const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
     const p = buyer.provenance!;
-    // Hankinson net = buyer net - benchmarkDiff
-    const hankinsonNet = ((buyer.netPrice ?? 0) - (buyer.benchmarkDiff ?? 0));
+    const benchmarkName = marketDataService.getBenchmarkName(buyer.cropType);
+    const benchmark = marketDataService.getBenchmark(buyer.cropType);
+    // Benchmark net = buyer net - benchmarkDiff (back-calculated)
+    const benchmarkNet = ((buyer.netPrice ?? 0) - (buyer.benchmarkDiff ?? 0));
 
     return (
         <div className="mt-3 p-3 bg-black/40 rounded-xl border border-white/5 space-y-2.5 text-sm font-mono">
@@ -304,17 +367,17 @@ const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
             {buyer.benchmarkDiff !== undefined && (
                 <div className="mt-3 pt-2.5 border-t border-zinc-800">
                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-zinc-400 font-sans">vs Hankinson Benchmark</span>
-                        <span className={`font-bold ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value - hankinsonNet) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - hankinsonNet) >= 0 ? '+' : ''}
-                            {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - hankinsonNet).toFixed(2)}
+                        <span className="text-zinc-400 font-sans">vs {benchmarkName} Benchmark</span>
+                        <span className={`font-bold ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value - benchmarkNet) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - benchmarkNet) >= 0 ? '+' : ''}
+                            {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - benchmarkNet).toFixed(2)}
                         </span>
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans mt-1">
-                        Hank Net = Hank Cash − $0.30 benchmark freight = ${hankinsonNet.toFixed(2)}
+                        {benchmarkName} Net = Cash − ${benchmark.freight.toFixed(2)} freight = ${benchmarkNet.toFixed(2)}
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans">
-                        Delta = ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value).toFixed(2)} − ${hankinsonNet.toFixed(2)} = {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - hankinsonNet).toFixed(2)}
+                        Delta = ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value).toFixed(2)} − ${benchmarkNet.toFixed(2)} = {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - benchmarkNet).toFixed(2)}
                     </div>
                 </div>
             )}

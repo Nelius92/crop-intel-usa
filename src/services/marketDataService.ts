@@ -8,40 +8,77 @@ export interface MarketData {
     futuresPrice: number;
     contractMonth: string;
     lastUpdated: string;
-    source: 'usda' | 'cme' | 'cached' | 'fallback';
-    // Hankinson Renewable Energy benchmark (user's reference point)
-    hankinsonBasis: number;
-    hankinsonCashPrice: number;
+    source: 'usda' | 'cme' | 'nsa' | 'cached' | 'fallback';
+    // Crop-specific benchmark (Hankinson→Corn, Enderlin→Sunflowers)
+    benchmarkBasis: number;
+    benchmarkCashPrice: number;
+    benchmarkName: string;
+    benchmarkFreight: number; // truck freight to benchmark ($0.30 for Hankinson, $0 for Enderlin)
+    priceUnit: string;        // '$/bu' or '$/cwt'
 }
 
+// ── Crop-Specific Benchmark Configuration ──
+// Each crop has its own benchmark location — NO cross-contamination.
+//   Yellow Corn     → Hankinson Renewable Energy, ND (~25 mi truck)
+//   Soybeans        → AGP Dawson, MN (~30 mi truck)
+//   Wheat           → SD Wheat Growers Aberdeen, SD (~70 mi truck)
+//   Sunflowers      → ADM Enderlin (Northern Sun), ND (farmers drive)
+//   White Corn      → No local buyer near Campbell
+//
+// NSA daily market news (03/19/2026):
+//   ADM Enderlin:  $23.30/cwt cash, $22.80 AOG
+//   Cargill WF:    $23.20/cwt cash, $22.70 AOG
+//   Colorado Mills: $22.20/cwt AOG
 
-// Fallback values based on current market (updated Feb 27, 2026)
-// CME ZCH6 (Mar '26) = 435'4 = $4.354 — rounded to nearest cent
-const MARKET_DEFAULTS = {
+interface CropDefaults {
+    price: number;
+    contract: string;
+    benchmarkBasis: number;
+    benchmarkName: string;
+    benchmarkFreight: number;
+    priceUnit: string;
+}
+
+const MARKET_DEFAULTS: Record<string, CropDefaults> = {
     'Yellow Corn': {
         price: 4.35,
         contract: "ZCH6 (Mar '26)",
-        hankinsonBasis: -0.54   // Hankinson actual ~Feb 27, 2026 → ~$3.81 cash
+        benchmarkBasis: -0.54,       // Hankinson actual ~Feb 27, 2026 → ~$3.81 cash
+        benchmarkName: 'Hankinson',
+        benchmarkFreight: 0.30,      // Fixed $0.30/bu truck from Campbell
+        priceUnit: '$/bu'
     },
     'White Corn': {
         price: 4.60,
         contract: "ZCH6 (Mar '26)",
-        hankinsonBasis: -0.10 // White corn premium
+        benchmarkBasis: 0,               // No local white corn buyer — no benchmark
+        benchmarkName: 'No Local Buyer',
+        benchmarkFreight: 0,
+        priceUnit: '$/bu'
     },
     'Soybeans': {
         price: 11.42,
         contract: "ZSH6 (Mar '26)",
-        hankinsonBasis: -0.80
+        benchmarkBasis: -0.55,           // AGP Dawson est. basis (nearest crush ~30mi)
+        benchmarkName: 'AGP Dawson',
+        benchmarkFreight: 0.15,          // ~30 miles truck from Campbell
+        priceUnit: '$/bu'
     },
     'Wheat': {
         price: 5.42,
         contract: "ZWH6 (Mar '26)",
-        hankinsonBasis: -0.60
+        benchmarkBasis: -0.45,           // SD Wheat Growers Aberdeen est. basis (~70mi)
+        benchmarkName: 'SD Wheat Growers Aberdeen',
+        benchmarkFreight: 0.25,          // ~70 miles truck from Campbell
+        priceUnit: '$/bu'
     },
     'Sunflowers': {
-        price: 18.50, // NuSun/high-oleic sunflower price per bushel (actual market level)
-        contract: "Cash Market",
-        hankinsonBasis: 0.00
+        price: 23.30,                // ADM Enderlin cash $/cwt (NSA 03/19/2026)
+        contract: 'Spot Cash (High-Oleic)',
+        benchmarkBasis: 0,           // Enderlin IS the benchmark — basis is zero
+        benchmarkName: 'Enderlin ADM',
+        benchmarkFreight: 0,         // Farmers drive to Enderlin directly — no freight
+        priceUnit: '$/cwt'
     }
 };
 
@@ -50,15 +87,21 @@ function createMarketData(
     futuresPrice: number,
     contractMonth: string,
     source: MarketData['source'],
-    hankinsonBasis: number
+    benchmarkBasis: number,
+    benchmarkName: string,
+    benchmarkFreight: number,
+    priceUnit: string
 ): MarketData {
     return {
         futuresPrice,
         contractMonth,
         lastUpdated: new Date().toISOString(),
         source,
-        hankinsonBasis,
-        hankinsonCashPrice: parseFloat((futuresPrice + hankinsonBasis).toFixed(2))
+        benchmarkBasis,
+        benchmarkCashPrice: parseFloat((futuresPrice + benchmarkBasis).toFixed(2)),
+        benchmarkName,
+        benchmarkFreight,
+        priceUnit
     };
 }
 
@@ -70,12 +113,15 @@ export const marketDataService = {
         if (cached) return cached;
 
         // Default to Yellow Corn if crop not found
-        const defaults = MARKET_DEFAULTS[crop as keyof typeof MARKET_DEFAULTS] || MARKET_DEFAULTS['Yellow Corn'];
+        const defaults = MARKET_DEFAULTS[crop] || MARKET_DEFAULTS['Yellow Corn'];
         const data = createMarketData(
             defaults.price,
             defaults.contract,
             'fallback',
-            defaults.hankinsonBasis
+            defaults.benchmarkBasis,
+            defaults.benchmarkName,
+            defaults.benchmarkFreight,
+            defaults.priceUnit
         );
         cacheService.set('market', crop, data, CACHE_TTL.MARKET_MS);
         return data;
@@ -90,11 +136,23 @@ export const marketDataService = {
         return marketDataService.getCropMarketData('Yellow Corn').contractMonth;
     },
 
+    // Get benchmark for a specific crop (crop-aware)
+    getBenchmark: (crop: string = 'Yellow Corn'): { basis: number; cashPrice: number; name: string; freight: number } => {
+        const data = marketDataService.getCropMarketData(crop);
+        return {
+            basis: data.benchmarkBasis,
+            cashPrice: data.benchmarkCashPrice,
+            name: data.benchmarkName,
+            freight: data.benchmarkFreight
+        };
+    },
+
+    // Legacy alias — defaults to Corn Hankinson
     getHankinsonBenchmark: (): { basis: number; cashPrice: number } => {
         const data = marketDataService.getCropMarketData('Yellow Corn');
         return {
-            basis: data.hankinsonBasis,
-            cashPrice: data.hankinsonCashPrice
+            basis: data.benchmarkBasis,
+            cashPrice: data.benchmarkCashPrice
         };
     },
 
@@ -105,25 +163,33 @@ export const marketDataService = {
 
     // Async fetch of latest futures price from real source
     fetchLatestFuturesPrice: async (): Promise<MarketData> => {
-        // In a real app, this would fetch for all crops.
-        // Invalidate the market cache so getCropMarketData recomputes fresh values.
         cacheService.invalidate('market');
         return marketDataService.getCropMarketData('Yellow Corn');
     },
 
-    // Update Hankinson basis manually (defaults to Corn)
-    updateHankinsonBasis: (basis: number): void => {
-        const crop = 'Yellow Corn';
+    // Update benchmark basis for a specific crop
+    updateBenchmarkBasis: (basis: number, crop: string = 'Yellow Corn'): void => {
         const current = marketDataService.getCropMarketData(crop);
-        const updated = createMarketData(current.futuresPrice, current.contractMonth, 'cached', basis);
+        const updated = createMarketData(
+            current.futuresPrice, current.contractMonth, 'cached', basis,
+            current.benchmarkName, current.benchmarkFreight, current.priceUnit
+        );
         cacheService.set('market', crop, updated, CACHE_TTL.MARKET_MS);
+    },
+
+    // Legacy alias
+    updateHankinsonBasis: (basis: number): void => {
+        marketDataService.updateBenchmarkBasis(basis, 'Yellow Corn');
     },
 
     // Update fallback price manually (defaults to Corn)
     setFallbackPrice: (price: number, contract?: string): void => {
         const crop = 'Yellow Corn';
         const current = marketDataService.getCropMarketData(crop);
-        const updated = createMarketData(price, contract || current.contractMonth, 'cached', current.hankinsonBasis);
+        const updated = createMarketData(
+            price, contract || current.contractMonth, 'cached', current.benchmarkBasis,
+            current.benchmarkName, current.benchmarkFreight, current.priceUnit
+        );
         cacheService.set('market', crop, updated, CACHE_TTL.MARKET_MS);
     },
 
@@ -132,8 +198,9 @@ export const marketDataService = {
         const data = marketDataService.getCropMarketData(crop);
         const sourceLabel = data.source === 'usda' ? 'USDA AMS'
             : data.source === 'cme' ? 'CME Group'
-                : data.source === 'cached' ? 'Cached Market Data'
-                    : `${data.contractMonth} Fallback`;
+                : data.source === 'nsa' ? 'National Sunflower Association'
+                    : data.source === 'cached' ? 'Cached Market Data'
+                        : `${data.contractMonth} Fallback`;
         return {
             value: data.futuresPrice,
             confidence: data.source === 'fallback' ? 'estimated' : 'verified',
@@ -141,5 +208,21 @@ export const marketDataService = {
             timestamp: data.lastUpdated || new Date().toISOString(),
             staleAfterMinutes: 60
         };
+    },
+
+    // Get the benchmark name for a crop (for display)
+    getBenchmarkName: (crop: string = 'Yellow Corn'): string => {
+        const defaults = MARKET_DEFAULTS[crop] || MARKET_DEFAULTS['Yellow Corn'];
+        return defaults.benchmarkName;
+    },
+
+    // Update sunflower price from NSA scrape
+    updateSunflowerPrice: (enderlinCash: number, source: MarketData['source'] = 'nsa'): void => {
+        const defaults = MARKET_DEFAULTS['Sunflowers'];
+        const updated = createMarketData(
+            enderlinCash, defaults.contract, source, 0, // benchmarkBasis=0 (Enderlin IS the benchmark)
+            defaults.benchmarkName, defaults.benchmarkFreight, defaults.priceUnit
+        );
+        cacheService.set('market', 'Sunflowers', updated, CACHE_TTL.MARKET_MS);
     }
 };

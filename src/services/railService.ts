@@ -267,9 +267,10 @@ export interface FreightQuote {
 export const calculateFreight = async (
     buyerLocation: { lat: number, lng: number, state?: string, city?: string },
     destinationName: string,
-    railAccessible: boolean = true
+    railAccessible: boolean = true,
+    crop?: string
 ): Promise<{ ratePerBushel: number, distance: number, origin: string, mode: 'rail' | 'truck', formula: string }> => {
-    const cacheKey = `${buyerLocation.state || 'unknown'}::${buyerLocation.city || destinationName}::${railAccessible}`;
+    const cacheKey = `${buyerLocation.state || 'unknown'}::${buyerLocation.city || destinationName}::${railAccessible}::${crop || 'Yellow Corn'}`;
 
     // Return cached freight rate immediately if fresh (12h TTL)
     const cached = cacheService.get<{ ratePerBushel: number, distance: number, origin: string, mode: 'rail' | 'truck', formula: string }>('freight', cacheKey);
@@ -316,7 +317,7 @@ export const calculateFreight = async (
             // Decision: Rail or Truck?
             if (railAccessible && state) {
                 // Use BNSF Rate Engine FROM Campbell, MN
-                const bnsfRate = bnsfService.calculateRate(state, city, buyerLocation.lat, buyerLocation.lng);
+                const bnsfRate = bnsfService.calculateRate(state, city, buyerLocation.lat, buyerLocation.lng, crop);
 
                 const result = {
                     ratePerBushel: bnsfRate.ratePerBushel,

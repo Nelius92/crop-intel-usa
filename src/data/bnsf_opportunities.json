@@ -1,0 +1,130 @@
+[
+  {
+    "id": "bnsf-opp-1",
+    "name": "Cargill Elevator",
+    "category": "grain_elevator",
+    "capacity": "2.5M Bushels",
+    "location": {
+      "lat": 46.2396,
+      "lng": -119.1,
+      "city": "Pasco",
+      "state": "WA"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0101",
+    "livePriceBase": 4.8,
+    "freightRateOverride": 1.1
+  },
+  {
+    "id": "bnsf-opp-2",
+    "name": "Green Plains Ethanol",
+    "category": "ethanol_plant",
+    "capacity": "100M Gallons",
+    "location": {
+      "lat": 41.14,
+      "lng": -104,
+      "city": "Alliance",
+      "state": "NE"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0102",
+    "livePriceBase": 4.35,
+    "freightRateOverride": 0.85
+  },
+  {
+    "id": "bnsf-opp-3",
+    "name": "Texas Panhandle Feeders",
+    "category": "feedlot",
+    "capacity": "50,000 Head",
+    "location": {
+      "lat": 35.222,
+      "lng": -101.831,
+      "city": "Amarillo",
+      "state": "TX"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0103",
+    "livePriceBase": 4.6,
+    "freightRateOverride": 0.95
+  },
+  {
+    "id": "bnsf-opp-4",
+    "name": "ADM Grain Terminal",
+    "category": "grain_elevator",
+    "capacity": "5M Bushels",
+    "location": {
+      "lat": 38.627,
+      "lng": -90.1994,
+      "city": "St. Louis",
+      "state": "MO"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0104",
+    "livePriceBase": 4.45,
+    "freightRateOverride": 0.65
+  },
+  {
+    "id": "bnsf-opp-5",
+    "name": "Midwest Ag Energy",
+    "category": "ethanol_plant",
+    "capacity": "65M Gallons",
+    "location": {
+      "lat": 47.5515,
+      "lng": -101.002,
+      "city": "Underwood",
+      "state": "ND"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0105",
+    "livePriceBase": 4.25,
+    "freightRateOverride": 1.25
+  },
+  {
+    "id": "bnsf-opp-6",
+    "name": "Five Rivers Cattle",
+    "category": "feedlot",
+    "capacity": "100,000 Head",
+    "location": {
+      "lat": 40.2672,
+      "lng": -104.779,
+      "city": "Greeley",
+      "state": "CO"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0106",
+    "livePriceBase": 4.7,
+    "freightRateOverride": 0.9
+  },
+  {
+    "id": "bnsf-opp-7",
+    "name": "Gavilon Grain",
+    "category": "grain_elevator",
+    "capacity": "3M Bushels",
+    "location": {
+      "lat": 41.2565,
+      "lng": -95.9345,
+      "city": "Omaha",
+      "state": "NE"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0107",
+    "livePriceBase": 4.4,
+    "freightRateOverride": 0.75
+  },
+  {
+    "id": "bnsf-opp-8",
+    "name": "Purina PetCare",
+    "category": "pet_food",
+    "capacity": "High Volume",
+    "location": {
+      "lat": 38.5,
+      "lng": -90.2,
+      "city": "St. Louis",
+      "state": "MO"
+    },
+    "railAccessible": true,
+    "contactInfo": "555-0108",
+    "livePriceBase": 4.55,
+    "freightRateOverride": 0.6
+  }
+]

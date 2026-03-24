@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CornMap } from '../components/CornMap';
-import { MarketIntelPanel } from '../components/MarketIntelPanel';
+import { MapControls } from '../components/MapControls';
 import { fetchTransloaders } from '../services/transloaderService';
 import { CropType, HeatmapPoint, Buyer, Transloader } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
@@ -95,6 +95,12 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [topStates, setTopStates] = useState<string[]>([]);
 
+    // Map Layer Toggles
+    const [showHeatmap, setShowHeatmap] = useState(true);
+    const [showRail, setShowRail] = useState(true);
+    const [showBnsfOpportunities, setShowBnsfOpportunities] = useState(true);
+    const [showTransloaders, setShowTransloaders] = useState(true);
+
     const fetchData = async (forceRefresh: boolean = false) => {
         setLoading(true);
         setError(null);
@@ -150,10 +156,11 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
     return (
         <div className="w-full h-full relative">
             <CornMap
-                showHeatmap={true}
-                showBuyers={true}
-                showRail={true}
-                showTransloaders={true}
+                showHeatmap={showHeatmap}
+                showBuyers={true} // General buyer dots
+                showRail={showRail}
+                showBnsfOpportunities={showBnsfOpportunities}
+                showTransloaders={showTransloaders}
                 view="usa"
                 theme="green-glow"
                 heatmapData={heatmapData}
@@ -162,6 +169,16 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
                 hoveredRegionId={null}
                 topStates={topStates}
             />
+
+            {/* Right Side Stack: Map Controls */}
+            <div className="absolute top-16 right-4 sm:top-20 sm:right-6 z-20 pointer-events-none flex flex-col items-end gap-4 w-[calc(100vw-32px)] sm:w-auto">
+                <MapControls
+                    showHeatmap={showHeatmap} setShowHeatmap={setShowHeatmap}
+                    showRail={showRail} setShowRail={setShowRail}
+                    showBnsfOpportunities={showBnsfOpportunities} setShowBnsfOpportunities={setShowBnsfOpportunities}
+                    showTransloaders={showTransloaders} setShowTransloaders={setShowTransloaders}
+                />
+            </div>
 
             {/* Overlay Elements */}
             <div className="absolute top-16 sm:top-20 left-4 sm:left-6 pointer-events-none z-10">
@@ -196,8 +213,8 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
                 <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
             </button>
 
-            <div className="absolute bottom-28 left-4 right-4 sm:bottom-auto sm:top-20 sm:right-6 sm:left-auto pointer-events-auto z-10 w-auto sm:w-80 max-h-[40vh] sm:max-h-[calc(100vh-120px)]">
-                <MarketIntelPanel buyers={buyers} />
+            <div className="hidden">
+                {/* MarketIntelPanel moved to right flex stack */}
             </div>
         </div>
     );

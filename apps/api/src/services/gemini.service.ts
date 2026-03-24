@@ -60,7 +60,7 @@ export class BackendGeminiService {
             'White Corn': 'Masa Flour Mills (TX, CA), Food Processors',
             'Soybeans': 'Crush Plants (ADM, Bunge), Export Terminals',
             'Wheat': 'Flour Mills, Export Terminals',
-            'Sunflowers': 'Crush Plants (ND, SD), Bird Food Processors'
+            'Sunflowers': 'Crush Plants (ND, SD, KS, CO), Bird Food Processors, Confection Handlers'
         };
         const targetBuyers = buyerContext[crop] || 'Agricultural Buyers';
 
@@ -119,8 +119,8 @@ export class BackendGeminiService {
             Find the latest CME ${crop} Futures price for the ** ${contractMonthQuery} ** contract.
             Find the current basis bid for a major benchmark buyer.
             
-            Return a JSON object with: "futuresPrice", "contractMonth", "hankinsonBasis", "centralRegionBasis".
-            If you cannot find an exact number, use safe defaults: Futures: 4.45, Hankinson: -0.47, Central: -0.60.
+            Return a JSON object with: "futuresPrice", "contractMonth", "benchmarkBasis", "centralRegionBasis".
+            If you cannot find an exact number, use safe defaults: Futures: 4.45, Benchmark Basis: -0.47, Central: -0.60.
             Output ONLY valid JSON.
         `;
 
@@ -140,7 +140,7 @@ export class BackendGeminiService {
     async enrichBuyers(crop: string, buyers: any[], oracle: any, fallbackFn: () => any) {
         if (!model) return fallbackFn();
 
-        const buyerList = buyers.filter(b => !b.name.includes('Hankinson')).map(b => ({
+        const buyerList = buyers.map(b => ({
             id: b.id, name: b.name, location: b.fullAddress || `${b.city}, ${b.state}`, type: b.type
         }));
 
@@ -166,7 +166,7 @@ export class BackendGeminiService {
             const enrichedData = JSON.parse(jsonStr);
 
             return buyers.map(buyer => {
-                if (buyer.name.includes('Hankinson')) return buyer;
+                const benchmarkBasis = oracle.benchmarkBasis ?? oracle.hankinsonBasis ?? -0.47;
                 const enrichment = enrichedData.find((e: any) => e.id === buyer.id);
                 let basis = enrichment ? enrichment.basis : oracle.centralRegionBasis;
                 const variance = (Math.random() * 0.06) - 0.03;
@@ -177,7 +177,7 @@ export class BackendGeminiService {
                     futuresPrice: oracle.futuresPrice,
                     contractMonth: oracle.contractMonth,
                     cashPrice: parseFloat((oracle.futuresPrice + basis).toFixed(2)),
-                    benchmarkDiff: parseFloat((basis - oracle.hankinsonBasis).toFixed(2)),
+                    benchmarkDiff: parseFloat((basis - benchmarkBasis).toFixed(2)),
                     verified: true
                 };
             });

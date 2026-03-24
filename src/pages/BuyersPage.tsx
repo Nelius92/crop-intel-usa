@@ -39,11 +39,13 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
         setError(null);
         try {
             const marketData = marketDataService.getCropMarketData(selectedCrop);
+            const benchmark = marketDataService.getBenchmark(selectedCrop);
             setOracle({
                 futuresPrice: marketData.futuresPrice,
                 contractMonth: marketData.contractMonth,
-                hankinsonBasis: marketData.hankinsonBasis,
-                hankinsonCashPrice: marketData.hankinsonCashPrice
+                benchmarkBasis: benchmark.basis,
+                benchmarkCashPrice: benchmark.cashPrice,
+                benchmarkName: benchmark.name
             });
 
             // If forced, invalidate the buyers cache first
@@ -127,16 +129,16 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                         </div>
                     </div>
 
-                    {/* Hankinson Benchmark Badge */}
-                    {oracle && oracle.hankinsonBasis !== 0 && (
+                    {/* Benchmark Badge */}
+                    {oracle && oracle.benchmarkBasis !== undefined && (
                         <div className="hidden md:flex flex-col items-end bg-red-950/30 border border-red-500/30 rounded-lg px-3 py-1.5 shadow-[0_0_10px_rgba(239,68,68,0.05)]">
                             <span className="text-[10px] text-red-400 uppercase tracking-wider font-semibold">Benchmark</span>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-red-300 font-mono text-sm">
-                                    {oracle.hankinsonBasis >= 0 ? '+' : ''}{oracle.hankinsonBasis.toFixed(2)} basis
+                                    {oracle.benchmarkBasis >= 0 ? '+' : ''}{oracle.benchmarkBasis.toFixed(2)} basis
                                 </span>
                                 <span className="text-white font-bold font-mono">
-                                    ${oracle.hankinsonCashPrice.toFixed(2)}
+                                    ${oracle.benchmarkCashPrice.toFixed(2)}
                                 </span>
                             </div>
                         </div>
@@ -152,16 +154,16 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                     </button>
                 </div>
 
-                {/* Mobile Hankinson Banner */}
-                {oracle && oracle.hankinsonBasis !== 0 && (
+                {/* Mobile Benchmark Banner */}
+                {oracle && oracle.benchmarkBasis !== undefined && (
                     <div className="md:hidden mt-2 bg-red-950/30 border border-red-500/30 rounded-lg px-3 py-2 flex justify-between items-center shadow-[0_0_10px_rgba(239,68,68,0.05)]">
                         <span className="text-[10px] text-red-400 uppercase tracking-wider font-semibold">Benchmark</span>
                         <div className="flex items-center gap-2">
                             <span className="text-red-300 font-mono text-xs">
-                                {oracle.hankinsonBasis >= 0 ? '+' : ''}{oracle.hankinsonBasis.toFixed(2)}
+                                {oracle.benchmarkBasis >= 0 ? '+' : ''}{oracle.benchmarkBasis.toFixed(2)}
                             </span>
                             <span className="text-white font-bold font-mono text-sm">
-                                ${oracle.hankinsonCashPrice.toFixed(2)}
+                                ${oracle.benchmarkCashPrice.toFixed(2)}
                             </span>
                         </div>
                     </div>

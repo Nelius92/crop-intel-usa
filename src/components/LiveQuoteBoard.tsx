@@ -51,7 +51,7 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
                         {/* Symbol / Name */}
                         <div className="mb-2">
                             <div className="text-xs text-slate-400 font-mono mb-1 flex items-center gap-2">
-                                <span>{buyer.city.toUpperCase()}</span>
+                                <span>{(buyer.city || '').toUpperCase()}</span>
                                 {buyer.isManual ? (
                                     <span className="text-[9px] font-bold text-black bg-yellow-400 px-1 rounded">VERIFIED</span>
                                 ) : (
@@ -66,7 +66,7 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
                             {/* Bid (Basis) */}
                             <div className="bg-black/30 rounded p-2 border border-white/5">
                                 <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Basis (Bid)</div>
-                                {buyer.basis !== undefined ? (
+                                {buyer.basis != null ? (
                                     <div className={`text-xl font-mono font-bold flex items-center ${buyer.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                         {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
                                         {buyer.basis >= 0 ? <ArrowUpRight size={14} className="ml-1 opacity-50" /> : <ArrowDownRight size={14} className="ml-1 opacity-50" />}

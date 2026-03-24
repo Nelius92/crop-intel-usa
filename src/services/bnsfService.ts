@@ -35,8 +35,21 @@ export const CAMPBELL_MN = {
 };
 
 // Constants
-const BUSHELS_PER_CAR = 4000; // Standard hopper car approx
 const FUEL_SURCHARGE_AVG = 250; // Estimated average FSC per car
+
+// Crop-specific bushels per car (weight-limited hopper car ~220,000 lbs capacity)
+const CROP_BUSHELS_PER_CAR: Record<string, number> = {
+    'Yellow Corn': 4000,    // 56 lbs/bu → ~3928 bu, round to 4000
+    'White Corn': 4000,
+    'Soybeans': 3667,       // 60 lbs/bu → ~3667 bu
+    'Wheat': 3667,          // 60 lbs/bu → ~3667 bu
+    'Sunflowers': 8800,     // 25 lbs/bu → ~8800 bu (weight-limited)
+};
+
+/** Get bushels per car for a crop (defaults to corn) */
+export function getCropBushelsPerCar(crop: string = 'Yellow Corn'): number {
+    return CROP_BUSHELS_PER_CAR[crop] || 4000;
+}
 
 // Base Rate Anchor: Campbell, MN to Hereford, TX (approx $4400/car)
 // This is based on Northern Plains to Texas Panhandle tariff
@@ -60,7 +73,7 @@ export const bnsfService = {
 
     // Calculate rate FROM Campbell, MN TO destination
     // For short-haul (MN/ND/SD), pass actual coordinates for precise distance
-    calculateRate: (destinationState: string, destinationCity: string, destLat?: number, destLng?: number): RailRate => {
+    calculateRate: (destinationState: string, destinationCity: string, destLat?: number, destLng?: number, crop?: string): RailRate => {
         let ratePerCar = BASE_RATE_CAMPBELL_TO_HEREFORD;
         let tariffItem = "4022-39011"; // General Corn Tariff
         let distanceMiles = DISTANCES_FROM_CAMPBELL[destinationState] || 500;
@@ -113,7 +126,8 @@ export const bnsfService = {
         }
 
         const totalCost = ratePerCar + FUEL_SURCHARGE_AVG;
-        const ratePerBushel = parseFloat((totalCost / BUSHELS_PER_CAR).toFixed(2));
+        const bushelsPerCar = getCropBushelsPerCar(crop);
+        const ratePerBushel = parseFloat((totalCost / bushelsPerCar).toFixed(2));
 
         return {
             origin: CAMPBELL_MN.name,

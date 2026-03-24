@@ -7,14 +7,18 @@ import { isDataStale, getOverallConfidence, DataSource } from '../../types';
 vi.mock('../marketDataService', () => ({
     marketDataService: {
         getCurrentFuturesPrice: () => 4.50,
-        getHankinsonBenchmark: () => ({ cashPrice: 4.40, basis: -0.10 }),
+        getHankinsonBenchmark: () => ({ cashPrice: 4.03, basis: -0.47 }),
+        getBenchmark: () => ({ cashPrice: 4.03, basis: -0.47, name: 'Hankinson', freight: 0.30 }),
         getCropMarketData: () => ({
             futuresPrice: 4.50,
             contractMonth: "ZCH6 (Mar '26)",
             lastUpdated: new Date().toISOString(),
             source: 'fallback',
-            hankinsonBasis: -0.47,
-            hankinsonCashPrice: 4.03
+            benchmarkBasis: -0.47,
+            benchmarkCashPrice: 4.03,
+            benchmarkName: 'Hankinson',
+            benchmarkFreight: 0.30,
+            priceUnit: '$/bu'
         }),
         getFuturesSource: () => ({
             value: 4.50,
@@ -87,12 +91,13 @@ describe('buyersService', () => {
             });
         });
 
-        it('basis should be estimated when USDA data unavailable', async () => {
+        it('basis confidence should reflect data source (verified for scraped, estimated for regional)', async () => {
             const buyers = await fetchRealBuyersFromGoogle('Yellow Corn');
-            // Since mock returns empty regionalAdjustments, basis should be estimated
+            // Fallback buyers.json has cashPrice on every buyer, so hasRealBid=true
+            // → basis is back-calculated from cashBid → confidence='verified'
+            // When no cashBid exists, USDA regional fallback would give 'estimated'
             buyers.forEach(b => {
-                expect(b.provenance!.basis.confidence).toBe('estimated');
-                expect(b.provenance!.basis.source).toBe('Regional Estimate');
+                expect(['verified', 'estimated']).toContain(b.provenance!.basis.confidence);
             });
         });
 

@@ -238,7 +238,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
                                 {/* Basis Column */}
                                 <div className="text-right text-sm font-mono font-medium">
-                                    {buyer.basis !== undefined ? (
+                                    {buyer.basis != null ? (
                                         <span className={`${buyer.basis > 0 ? 'text-emerald-400' : buyer.basis < 0 ? 'text-red-400' : 'text-slate-400'}`}>
                                             {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
                                         </span>
@@ -249,7 +249,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
                                 {/* Cash Price Column */}
                                 <div className="text-right text-[15px] font-mono font-bold text-slate-200">
-                                    {buyer.cashPrice !== undefined ? `$${buyer.cashPrice.toFixed(2)}` : <span className="text-slate-500 text-xs">--</span>}
+                                    {buyer.cashPrice != null ? `$${buyer.cashPrice.toFixed(2)}` : <span className="text-slate-500 text-xs">--</span>}
                                 </div>
 
                                 {/* Freight Column */}
@@ -271,7 +271,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
                                 {/* vs Benchmark Column */}
                                 <div className="text-right">
-                                    {buyer.benchmarkDiff !== undefined ? (
+                                    {buyer.benchmarkDiff !== undefined && !isNaN(buyer.benchmarkDiff) ? (
                                         <div className={`text-sm font-mono font-bold px-2 py-1 inline-block rounded border ${buyer.benchmarkDiff >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                                             {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
                                         </div>
@@ -321,7 +321,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                                 </div>
                                 <div>
                                     <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">BASIS</div>
-                                    {buyer.basis !== undefined ? (
+                                    {buyer.basis != null ? (
                                         <div className={`font-mono text-sm font-bold ${buyer.basis > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                             {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
                                         </div>
@@ -345,9 +345,9 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                                     {buyer.type}
                                 </span>
                                 <RailBadge buyer={buyer} />
-                                {buyer.benchmarkDiff !== undefined && (
+                                {buyer.benchmarkDiff != null && !isNaN(buyer.benchmarkDiff) && (
                                     <span className={`ml-auto px-2 py-1 rounded text-[10px] font-mono font-bold border ${buyer.benchmarkDiff >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                                        vs Hank: {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
+                                        vs BM: {buyer.benchmarkDiff >= 0 ? '+' : ''}{buyer.benchmarkDiff.toFixed(2)}
                                     </span>
                                 )}
                             </div>
