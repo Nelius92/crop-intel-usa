@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { logger } from '../logger.js';
 import { isDatabaseConfigured } from '../db/pool.js';
 import { getBuyerById, getBuyerProvenanceSummary, listBuyers } from '../repositories/buyers-repo.js';
+import { env } from '../env.js';
 
 export const buyersRouter = Router();
 
@@ -103,6 +104,47 @@ buyersRouter.get('/:id', async (req, res, next) => {
             data: buyer,
             provenance,
         });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ── POST /sync — Trigger buyer contact sync (protected) ─────────────
+const syncQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(500).optional(),
+    staleDays: z.coerce.number().int().min(1).max(365).optional(),
+    delayMs: z.coerce.number().int().min(50).max(2000).optional(),
+});
+
+buyersRouter.post('/sync', async (req, res, next) => {
+    try {
+        // Auth: require bearer token matching GOOGLE_MAPS_API_KEY
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        const expectedToken = env.GOOGLE_MAPS_API_KEY;
+
+        if (!token || !expectedToken || token !== expectedToken) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        if (!isDatabaseConfigured()) {
+            return res.status(503).json({ error: 'Database not configured' });
+        }
+
+        const parsed = syncQuerySchema.parse(req.body ?? {});
+        logger.info('Starting buyer contact sync', parsed);
+
+        // Dynamic import to avoid loading Google Places service on every request
+        const { runBuyerContactSync } = await import('../services/buyer-contact-sync.js');
+
+        const summary = await runBuyerContactSync({
+            limit: parsed.limit ?? 200,
+            staleDays: parsed.staleDays ?? 30,
+            delayMs: parsed.delayMs ?? 200,
+        });
+
+        logger.info('Buyer contact sync completed', summary);
+        res.json({ data: summary });
     } catch (error) {
         next(error);
     }
