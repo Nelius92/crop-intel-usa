@@ -175,7 +175,7 @@ async function fetchSyncCandidates(limit: number, staleDays: number): Promise<Sy
                     OR bc.verified_status <> 'verified'
                 )
             ORDER BY b.state, b.name
-            LIMIT $2
+            LIMIT $2::int
         `,
         [String(staleDays), limit]
     );
