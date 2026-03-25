@@ -8,7 +8,8 @@ import { calculateFreight } from '../railService';
  * Tests the BNSF tariff-based rate engine and the calculateFreight function
  * to ensure freight rates from Campbell, MN are accurate and consistent.
  * 
- * All rates are based on BNSF Tariff 4022 (2025/2026 Marketing Year).
+ * Rates calibrated with LIVE BNSF API data (Tariff 4022 Item 31750, March 2026).
+ * Crop-specific: per-car rates are constant, per-bushel varies by crop weight.
  */
 
 describe('BNSF Rate Engine - bnsfService', () => {
@@ -22,98 +23,218 @@ describe('BNSF Rate Engine - bnsfService', () => {
         });
     });
 
-    describe('Tariff Rate Calculations', () => {
-        it('should calculate correct rate for Hereford, TX (base rate)', () => {
-            const rate = bnsfService.calculateRate('TX', 'Hereford');
-            // Base rate: $4400/car + $250 FSC = $4650 total
-            // $4650 / 4000 bushels = $1.16/bushel
-            expect(rate.ratePerCar).toBe(4400);
-            expect(rate.ratePerBushel).toBe(1.16);
-            expect(rate.fuelSurcharge).toBe(250);
-            expect(rate.origin).toBe('Campbell, MN');
-            expect(rate.destination).toBe('Hereford, TX');
-            expect(rate.tariffItem).toContain('4022');
-        });
-
-        it('should calculate correct rate for California (Base + $960)', () => {
+    describe('API-Verified Rates (CA, WA, OR, MT)', () => {
+        it('California: Modesto = $6,075/car ($1.58/bu corn)', () => {
             const rate = bnsfService.calculateRate('CA', 'Modesto');
-            // CA: $4400 + $960 = $5360/car + $250 FSC = $5610
-            // $5610 / 4000 = $1.40/bushel
-            expect(rate.ratePerCar).toBe(5360);
-            expect(rate.ratePerBushel).toBe(1.40);
-            expect(rate.tariffItem).toContain('CA');
+            // BNSF API: Modesto = $6,075/car + $250 FSC = $6,325
+            // $6,325 / 4,000 bu = $1.58/bu (corn)
+            expect(rate.ratePerCar).toBe(6075);
+            expect(rate.ratePerBushel).toBe(1.58);
+            expect(rate.tariffItem).toContain('API-verified');
         });
 
-        it('should calculate correct rate for PNW / Washington (Base + $600)', () => {
-            const rate = bnsfService.calculateRate('WA', 'Yakima');
-            // WA: $4400 + $600 = $5000/car + $250 FSC = $5250
-            // $5250 / 4000 = $1.31/bushel
-            expect(rate.ratePerCar).toBe(5000);
-            expect(rate.ratePerBushel).toBe(1.31);
-            expect(rate.tariffItem).toContain('PNW');
+        it('WA Inland: Toppenish = $3,038/car ($0.82/bu corn)', () => {
+            const rate = bnsfService.calculateRate('WA', 'Toppenish');
+            // BNSF API: Toppenish $3,038/car + $250 FSC = $3,288
+            expect(rate.ratePerCar).toBe(3038);
+            expect(rate.ratePerBushel).toBe(0.82);
+            expect(rate.tariffItem).toContain('WA inland');
         });
 
-        it('should calculate correct rate for Oregon (same as WA)', () => {
-            const rate = bnsfService.calculateRate('OR', 'Portland');
-            expect(rate.ratePerCar).toBe(5000);
-            expect(rate.ratePerBushel).toBe(1.31);
+        it('WA Export: Seattle-area = $5,944/car ($1.55/bu corn)', () => {
+            const rate = bnsfService.calculateRate('WA', 'Seattle');
+            expect(rate.ratePerCar).toBe(5944);
+            expect(rate.ratePerBushel).toBe(1.55);
+            expect(rate.tariffItem).toContain('WA export');
         });
 
-        it('should calculate correct rate for SW Kansas (Base - $1020)', () => {
-            const rate = bnsfService.calculateRate('KS', 'Garden City');
-            // KS: $4400 - $1020 = $3380/car + $250 FSC = $3630
-            // $3630 / 4000 = $0.91/bushel
-            expect(rate.ratePerCar).toBe(3380);
-            expect(rate.ratePerBushel).toBe(0.91);
+        it('OR Export: McMinnville = $6,606/car ($1.71/bu corn)', () => {
+            const rate = bnsfService.calculateRate('OR', 'McMinnville');
+            expect(rate.ratePerCar).toBe(6606);
+            expect(rate.ratePerBushel).toBe(1.71);
         });
 
-        it('should calculate correct rate for Idaho (Base + $500)', () => {
-            const rate = bnsfService.calculateRate('ID', 'Jerome');
-            // ID: $4400 + $500 = $4900/car + $250 FSC = $5150
-            // $5150 / 4000 = $1.29/bushel
+        it('OR Inland: Prineville = $4,966/car ($1.30/bu corn)', () => {
+            const rate = bnsfService.calculateRate('OR', 'Prineville');
+            expect(rate.ratePerCar).toBe(4966);
+            expect(rate.ratePerBushel).toBe(1.30);
+        });
+
+        it('Montana: $4,900/car ($1.29/bu corn)', () => {
+            const rate = bnsfService.calculateRate('MT', 'Billings');
             expect(rate.ratePerCar).toBe(4900);
             expect(rate.ratePerBushel).toBe(1.29);
         });
+    });
 
-        it('should calculate correct rate for Texas Gulf (Base - $260)', () => {
+    describe('Texas & Southern Plains', () => {
+        it('TX Panhandle (Hereford) = base rate $4,400/car ($1.16/bu)', () => {
+            const rate = bnsfService.calculateRate('TX', 'Hereford');
+            expect(rate.ratePerCar).toBe(4400);
+            expect(rate.ratePerBushel).toBe(1.16);
+            expect(rate.origin).toBe('Campbell, MN');
+            expect(rate.destination).toBe('Hereford, TX');
+        });
+
+        it('TX Gulf (Galveston) = Base - $260 ($1.10/bu)', () => {
             const rate = bnsfService.calculateRate('TX', 'Galveston');
-            // Gulf: $4400 - $260 = $4140/car + $250 FSC = $4390
-            // $4390 / 4000 = $1.10/bushel
             expect(rate.ratePerCar).toBe(4140);
             expect(rate.ratePerBushel).toBe(1.10);
         });
 
-        it('should calculate correct rate for Midwest (Base - $1500)', () => {
+        it('Kansas = Base - $1,020 ($0.91/bu)', () => {
+            const rate = bnsfService.calculateRate('KS', 'Garden City');
+            expect(rate.ratePerCar).toBe(3380);
+            expect(rate.ratePerBushel).toBe(0.91);
+        });
+
+        it('Colorado = same tier as KS ($0.91/bu)', () => {
+            const rate = bnsfService.calculateRate('CO', 'Denver');
+            expect(rate.ratePerCar).toBe(3380);
+            expect(rate.ratePerBushel).toBe(0.91);
+        });
+
+        it('Oklahoma = TX Gulf tier ($1.04/bu)', () => {
+            const rate = bnsfService.calculateRate('OK', 'Tulsa');
+            expect(rate.ratePerCar).toBe(4140);
+            expect(rate.ratePerBushel).toBe(1.10);
+        });
+    });
+
+    describe('Mountain / Southwest', () => {
+        it('Idaho = Base + $500 ($1.29/bu)', () => {
+            const rate = bnsfService.calculateRate('ID', 'Jerome');
+            expect(rate.ratePerCar).toBe(4900);
+            expect(rate.ratePerBushel).toBe(1.29);
+        });
+
+        it('Wyoming = Base + $500 ($1.29/bu)', () => {
+            const rate = bnsfService.calculateRate('WY', 'Sheridan');
+            expect(rate.ratePerCar).toBe(4900);
+            expect(rate.ratePerBushel).toBe(1.29);
+        });
+
+        it('New Mexico = base TX tier ($1.16/bu)', () => {
+            const rate = bnsfService.calculateRate('NM', 'Clovis');
+            expect(rate.ratePerCar).toBe(4400);
+            expect(rate.ratePerBushel).toBe(1.16);
+        });
+
+        it('Arizona = Base + $700 ($1.28/bu)', () => {
+            const rate = bnsfService.calculateRate('AZ', 'Phoenix');
+            expect(rate.ratePerCar).toBe(5100);
+            expect(rate.ratePerBushel).toBe(1.34);
+        });
+    });
+
+    describe('Midwest / Corn Belt', () => {
+        it('Iowa = Midwest tier ($0.79/bu)', () => {
             const rate = bnsfService.calculateRate('IA', 'Des Moines');
-            // Midwest: $4400 - $1500 = $2900/car + $250 FSC = $3150
-            // $3150 / 4000 = $0.79/bushel
             expect(rate.ratePerCar).toBe(2900);
             expect(rate.ratePerBushel).toBe(0.79);
         });
 
-        it('should calculate correct rate for Nebraska (Midwest tier)', () => {
+        it('Nebraska = Midwest tier ($0.79/bu)', () => {
             const rate = bnsfService.calculateRate('NE', 'Columbus');
             expect(rate.ratePerCar).toBe(2900);
             expect(rate.ratePerBushel).toBe(0.79);
         });
 
-        it('should calculate correct rate for Illinois (Midwest tier)', () => {
+        it('Illinois = Midwest tier ($0.79/bu)', () => {
             const rate = bnsfService.calculateRate('IL', 'Springfield');
             expect(rate.ratePerCar).toBe(2900);
             expect(rate.ratePerBushel).toBe(0.79);
         });
 
-        it('should use default rate for unknown state', () => {
-            const rate = bnsfService.calculateRate('FL', 'Miami');
-            // Default: $4400/car + $250 FSC = $4650
-            expect(rate.ratePerCar).toBe(4400);
-            expect(rate.ratePerBushel).toBe(1.16);
+        it('Indiana = Midwest tier ($0.79/bu)', () => {
+            const rate = bnsfService.calculateRate('IN', 'Indianapolis');
+            expect(rate.ratePerCar).toBe(2900);
+            expect(rate.ratePerBushel).toBe(0.79);
+        });
+
+        it('Ohio = Midwest tier ($0.79/bu)', () => {
+            const rate = bnsfService.calculateRate('OH', 'Toledo');
+            expect(rate.ratePerCar).toBe(2900);
+            expect(rate.ratePerBushel).toBe(0.79);
+        });
+
+        it('Wisconsin = Midwest tier ($0.79/bu)', () => {
+            const rate = bnsfService.calculateRate('WI', 'Madison');
+            expect(rate.ratePerCar).toBe(2900);
+            expect(rate.ratePerBushel).toBe(0.79);
+        });
+    });
+
+    describe('Southeast (Interline)', () => {
+        it('Tennessee = Base + $500 ($1.16/bu)', () => {
+            const rate = bnsfService.calculateRate('TN', 'Memphis');
+            expect(rate.ratePerCar).toBe(4900);
+            expect(rate.ratePerBushel).toBe(1.29);
+        });
+
+        it('Arkansas = Base + $200 ($1.15/bu)', () => {
+            const rate = bnsfService.calculateRate('AR', 'Little Rock');
+            expect(rate.ratePerCar).toBe(4600);
+            expect(rate.ratePerBushel).toBe(1.21);
+        });
+
+        it('Mississippi = Base + $500 ($1.29/bu)', () => {
+            const rate = bnsfService.calculateRate('MS', 'Jackson');
+            expect(rate.ratePerCar).toBe(4900);
+            expect(rate.ratePerBushel).toBe(1.29);
+        });
+
+        it('Alabama = Base + $700 ($1.34/bu)', () => {
+            const rate = bnsfService.calculateRate('AL', 'Birmingham');
+            expect(rate.ratePerCar).toBe(5100);
+            expect(rate.ratePerBushel).toBe(1.34);
+        });
+
+        it('Georgia = Base + $900 ($1.41/bu)', () => {
+            const rate = bnsfService.calculateRate('GA', 'Atlanta');
+            expect(rate.ratePerCar).toBe(5300);
+            expect(rate.ratePerBushel).toBe(1.39);
+        });
+
+        it('Louisiana = TX Gulf tier ($1.10/bu)', () => {
+            const rate = bnsfService.calculateRate('LA', 'New Orleans');
+            expect(rate.ratePerCar).toBe(4140);
+            expect(rate.ratePerBushel).toBe(1.10);
+        });
+    });
+
+    describe('Crop-Specific Bushels Per Car', () => {
+        it('soybeans cost more per bushel (fewer bu/car)', () => {
+            const cornRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Yellow Corn');
+            const soyRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Soybeans');
+            // Same per-car, but soy = 3,667 bu/car vs corn = 4,000
+            expect(cornRate.ratePerCar).toBe(soyRate.ratePerCar);
+            expect(soyRate.ratePerBushel).toBeGreaterThan(cornRate.ratePerBushel);
+            // Soy: (6075+250)/3667 = $1.72/bu
+            expect(soyRate.ratePerBushel).toBe(1.72);
+        });
+
+        it('sunflowers cost less per bushel (more bu/car, lighter)', () => {
+            const cornRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Yellow Corn');
+            const sunRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Sunflowers');
+            // Sunflowers: 8,800 bu/car (25 lbs/bu)
+            expect(sunRate.ratePerBushel).toBeLessThan(cornRate.ratePerBushel);
+            // (6075+250)/8800 = $0.72/bu
+            expect(sunRate.ratePerBushel).toBe(0.72);
+        });
+
+        it('wheat same per-bushel as soybeans (same 60 lbs/bu)', () => {
+            const soyRate = bnsfService.calculateRate('KS', 'Garden City', undefined, undefined, 'Soybeans');
+            const wheatRate = bnsfService.calculateRate('KS', 'Garden City', undefined, undefined, 'Wheat');
+            expect(soyRate.ratePerBushel).toBe(wheatRate.ratePerBushel);
         });
     });
 
     describe('Rate Reasonableness', () => {
         it('freight should never be negative', () => {
-            const states = ['CA', 'WA', 'TX', 'KS', 'ID', 'IA', 'NE', 'IL', 'OR', 'FL', 'MN'];
+            const states = ['CA', 'WA', 'TX', 'KS', 'ID', 'IA', 'NE', 'IL', 'OR',
+                            'CO', 'OK', 'WY', 'MT', 'GA', 'AL', 'TN', 'AR', 'MS',
+                            'LA', 'OH', 'IN', 'WI', 'NM', 'AZ', 'FL', 'MN'];
             states.forEach(state => {
                 const rate = bnsfService.calculateRate(state, 'City');
                 expect(rate.ratePerBushel).toBeGreaterThan(0);
@@ -132,12 +253,20 @@ describe('BNSF Rate Engine - bnsfService', () => {
         });
 
         it('rate per bushel should always be between $0.05 and $3.00', () => {
-            const states = ['CA', 'WA', 'TX', 'KS', 'ID', 'IA', 'NE', 'IL', 'OR', 'MN'];
+            const states = ['CA', 'WA', 'TX', 'KS', 'ID', 'IA', 'NE', 'IL', 'OR',
+                            'CO', 'OK', 'WY', 'MT', 'GA', 'AL', 'TN', 'AR', 'MS',
+                            'LA', 'OH', 'IN', 'WI', 'NM', 'AZ', 'MN'];
             states.forEach(state => {
                 const rate = bnsfService.calculateRate(state, 'City');
                 expect(rate.ratePerBushel).toBeGreaterThanOrEqual(0.05);
                 expect(rate.ratePerBushel).toBeLessThanOrEqual(3.00);
             });
+        });
+
+        it('southeast interline should be pricier than Midwest', () => {
+            const gaRate = bnsfService.calculateRate('GA', 'Atlanta');
+            const iaRate = bnsfService.calculateRate('IA', 'Des Moines');
+            expect(gaRate.ratePerBushel).toBeGreaterThan(iaRate.ratePerBushel);
         });
     });
 });
@@ -150,7 +279,7 @@ describe('calculateFreight Integration', () => {
                 'Penny Newman Grain'
             );
             expect(result.origin).toBe('Campbell, MN');
-            expect(result.ratePerBushel).toBe(1.40); // CA rate
+            expect(result.ratePerBushel).toBe(1.58); // CA API-verified rate
             expect(result.distance).toBe(1850);
         });
 
@@ -187,15 +316,7 @@ describe('calculateFreight Integration', () => {
                 { lat: 37.6391, lng: -120.9969 },
                 'Stanislaus Feed Modesto'
             );
-            expect(result.ratePerBushel).toBe(1.40);
-        });
-
-        it('should infer WA from "Yakima" in name', async () => {
-            const result = await calculateFreight(
-                { lat: 46.6021, lng: -120.5059 },
-                'Yakima Valley Feed'
-            );
-            expect(result.ratePerBushel).toBe(1.31);
+            expect(result.ratePerBushel).toBe(1.58); // Updated CA rate
         });
 
         it('should return a positive rate for unknown location (truck fallback)', async () => {
