@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown, User, Clock } from 'lucide-react';
-import { HeatmapPoint, Buyer, Transloader, isDataStale } from '../types';
+import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown, User, Clock, Sparkles, Loader2 } from 'lucide-react';
+import { HeatmapPoint, Buyer, Transloader, isDataStale, CropType } from '../types';
 import { BNSFOpportunity } from '../services/bnsfScraperService';
 import { SourceLabel, formatTimeAgo } from './TrustBadge';
 import { getCorridorName } from '../services/railConfidenceService';
 import { marketDataService } from '../services/marketDataService';
+import { calculateBuyerIntelScore, fetchBuyerExplanation } from '../services/buyerIntelService';
 
 interface OpportunityDrawerProps {
     item: HeatmapPoint | Buyer | Transloader | BNSFOpportunity | null;
@@ -17,6 +18,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
     const isTransloader = (item: any): item is Transloader => 'type' in item && item.type === 'transload';
     const isBnsfOpportunity = (item: any): item is BNSFOpportunity => item && 'livePriceBase' in item;
     const [showExplain, setShowExplain] = useState(false);
+    const [showIntel, setShowIntel] = useState(false);
+    const [intelExplanation, setIntelExplanation] = useState<string | null>(null);
+    const [loadingExplanation, setLoadingExplanation] = useState(false);
 
     if (!item) return null;
 
@@ -194,6 +198,96 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                     </div>
                                 </div>
                             )}
+                            {/* ─── Why Contact This Buyer? ─── */}
+                            {isBuyer(item) && (() => {
+                                const crop = (item.cropType || 'Yellow Corn') as CropType;
+                                const benchmark = marketDataService.getBenchmark(crop);
+                                const intel = calculateBuyerIntelScore(item, crop, benchmark.cashPrice);
+
+                                const BADGE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+                                    green: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30' },
+                                    blue: { bg: 'bg-sky-500/15', text: 'text-sky-400', border: 'border-sky-500/30' },
+                                    amber: { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
+                                    gray: { bg: 'bg-slate-500/15', text: 'text-slate-500', border: 'border-slate-500/30' },
+                                };
+                                const bc = BADGE_COLORS[intel.color] || BADGE_COLORS.gray;
+
+                                const handleFetchExplanation = async () => {
+                                    if (intelExplanation) { setShowIntel(!showIntel); return; }
+                                    setShowIntel(true);
+                                    setLoadingExplanation(true);
+                                    try {
+                                        const explanation = await fetchBuyerExplanation(item, crop, benchmark.cashPrice);
+                                        setIntelExplanation(explanation);
+                                    } catch {
+                                        setIntelExplanation(`${item.name} is a ${item.type} facility in ${item.city}, ${item.state}. Contact the grain desk to discuss ${crop} delivery.`);
+                                    } finally {
+                                        setLoadingExplanation(false);
+                                    }
+                                };
+
+                                return (
+                                    <div>
+                                        <button
+                                            onClick={handleFetchExplanation}
+                                            className="w-full flex items-center justify-between py-3 px-3 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 transition-colors group"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles size={14} className={bc.text} />
+                                                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                                                    Why Contact This Buyer?
+                                                </span>
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${bc.bg} ${bc.text} ${bc.border}`}>
+                                                    {intel.emoji} {intel.score}/100
+                                                </span>
+                                            </div>
+                                            <ChevronDown size={14} className={`text-zinc-500 transition-transform ${showIntel ? 'rotate-180' : ''}`} />
+                                        </button>
+
+                                        <AnimatePresence>
+                                            {showIntel && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.2 }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="pt-3 space-y-3">
+                                                        {/* Score Breakdown Bars */}
+                                                        <div className="space-y-2">
+                                                            {intel.signals.map((signal) => (
+                                                                <div key={signal.name} className="flex items-center gap-2">
+                                                                    <div className="w-24 text-[10px] text-zinc-500 font-medium truncate">{signal.name}</div>
+                                                                    <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all duration-500 ${signal.points >= signal.maxPoints * 0.8 ? 'bg-emerald-500' : signal.points >= signal.maxPoints * 0.4 ? 'bg-sky-500' : signal.points > 0 ? 'bg-amber-500' : 'bg-zinc-700'}`}
+                                                                            style={{ width: `${(signal.points / signal.maxPoints) * 100}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="w-10 text-right text-[10px] font-mono text-zinc-400">{signal.points}/{signal.maxPoints}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* Gemini Explanation */}
+                                                        <div className="p-3 rounded-lg bg-black/30 border border-white/5">
+                                                            {loadingExplanation ? (
+                                                                <div className="flex items-center gap-2 text-zinc-400 text-xs">
+                                                                    <Loader2 size={14} className="animate-spin" />
+                                                                    Analyzing buyer profile...
+                                                                </div>
+                                                            ) : intelExplanation ? (
+                                                                <p className="text-xs text-zinc-300 leading-relaxed">{intelExplanation}</p>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Buyer Actions (Only for Buyers) */}
                             {isBuyer(item) && (

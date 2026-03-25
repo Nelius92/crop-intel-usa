@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Buyer, RailConfidenceLevel } from '../types';
-import { Train, Filter, X, ShieldCheck, Search } from 'lucide-react';
+import { Buyer, CropType, RailConfidenceLevel } from '../types';
+import { Train, Filter, X, ShieldCheck, Search, Sparkles } from 'lucide-react';
+import { calculateBuyerIntelScore } from '../services/buyerIntelService';
 
 const RAIL_BADGE: Record<RailConfidenceLevel, { label: string; color: string }> = {
     confirmed: { label: 'BNSF ✓', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
@@ -25,13 +26,22 @@ const RailBadge: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
     );
 };
 
+const INTEL_BADGE_STYLES: Record<string, string> = {
+    green: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    blue: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+    amber: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    gray: 'bg-slate-500/15 text-slate-500 border-slate-500/30',
+};
+
 interface BuyerTableProps {
     buyers: Buyer[];
     onSelect: (buyer: Buyer) => void;
     allBuyers?: Buyer[];
+    selectedCrop?: CropType;
+    benchmarkPrice?: number;
 }
 
-export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuyers }) => {
+export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuyers, selectedCrop = 'Yellow Corn', benchmarkPrice }) => {
     const [filterType, setFilterType] = useState<string>('');
     const [filterState, setFilterState] = useState<string>('');
     const [bnsfOnly, setBnsfOnly] = useState(false);
@@ -64,8 +74,21 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
         return result;
     }, [buyers, filterType, filterState, bnsfOnly, searchQuery]);
 
-    const displayed = filtered.slice(0, visibleCount);
-    const hasMore = visibleCount < filtered.length;
+    // Calculate intel scores for all filtered buyers
+    const scoredBuyers = useMemo(() => {
+        return filtered.map(buyer => ({
+            buyer,
+            intel: calculateBuyerIntelScore(buyer, selectedCrop, benchmarkPrice),
+        }));
+    }, [filtered, selectedCrop, benchmarkPrice]);
+
+    // Sort by intel score descending (best first)
+    const sorted = useMemo(() => {
+        return [...scoredBuyers].sort((a, b) => b.intel.score - a.intel.score);
+    }, [scoredBuyers]);
+
+    const displayed = sorted.slice(0, visibleCount);
+    const hasMore = visibleCount < sorted.length;
     const activeFilterCount = [filterType, filterState, bnsfOnly, searchQuery].filter(Boolean).length;
 
     const clearFilters = () => {
@@ -186,8 +209,9 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                 {/* Desktop Premium Grid View */}
                 <div className="hidden lg:block w-full min-w-[900px]">
                     {/* Header Row */}
-                    <div className="grid grid-cols-[2.5fr,1fr,1.5fr,1fr,1fr,1.2fr,1.2fr,1.2fr,1fr] gap-4 px-6 py-4 bg-[#1a1c23] sticky top-0 z-10 border-b border-[#2a2d36]">
+                    <div className="grid grid-cols-[2.2fr,0.8fr,1fr,1.3fr,0.9fr,0.9fr,1fr,1fr,1fr,1fr] gap-3 px-6 py-4 bg-[#1a1c23] sticky top-0 z-10 border-b border-[#2a2d36]">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Facility Name</div>
+                        <div className="text-xs font-bold text-emerald-400/80 uppercase tracking-widest text-center flex items-center gap-1 justify-center"><Sparkles size={10} />Intel</div>
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Type</div>
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Location</div>
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Basis</div>
@@ -200,11 +224,11 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
                     {/* Data Rows */}
                     <div className="flex flex-col divide-y divide-[#2a2d36]">
-                        {displayed.map((buyer) => (
+                        {displayed.map(({ buyer, intel }) => (
                             <div
                                 key={buyer.id}
                                 onClick={() => onSelect(buyer)}
-                                className="grid grid-cols-[2.5fr,1fr,1.5fr,1fr,1fr,1.2fr,1.2fr,1.2fr,1fr] gap-4 px-6 py-4 items-center bg-transparent hover:bg-[#1e2028] transition-all duration-200 cursor-pointer group"
+                                className="grid grid-cols-[2.2fr,0.8fr,1fr,1.3fr,0.9fr,0.9fr,1fr,1fr,1fr,1fr] gap-3 px-6 py-4 items-center bg-transparent hover:bg-[#1e2028] transition-all duration-200 cursor-pointer group"
                             >
                                 {/* Name column */}
                                 <div className="flex flex-col">
@@ -215,6 +239,16 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                                         )}
                                     </div>
                                     <div className="text-xs text-slate-500 font-mono mt-1">{buyer.contactPhone || 'No Phone'}</div>
+                                </div>
+
+                                {/* Intel Score Column */}
+                                <div className="flex justify-center">
+                                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${INTEL_BADGE_STYLES[intel.color] || INTEL_BADGE_STYLES.gray}`}
+                                        title={`Score: ${intel.score}/100 — ${intel.signals.map(s => `${s.name}: ${s.points}/${s.maxPoints}`).join(', ')}`}>
+                                        <span>{intel.emoji}</span>
+                                        <span className="hidden xl:inline">{intel.label}</span>
+                                        <span className="xl:hidden">{intel.score}</span>
+                                    </span>
                                 </div>
 
                                 {/* Type Column */}
@@ -289,7 +323,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
                 {/* Mobile / Tablet Card View */}
                 <div className="lg:hidden flex flex-col gap-3 p-4">
-                    {displayed.map((buyer) => (
+                    {displayed.map(({ buyer, intel }) => (
                         <div
                             key={buyer.id}
                             onClick={() => onSelect(buyer)}
@@ -338,6 +372,9 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap pl-2">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${INTEL_BADGE_STYLES[intel.color] || INTEL_BADGE_STYLES.gray}`}>
+                                    {intel.emoji} {intel.label}
+                                </span>
                                 <span className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border
                                     ${buyer.type === 'ethanol' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
                                         buyer.type === 'feedlot' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
@@ -362,7 +399,7 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                             onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
                             className="px-6 py-2.5 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-sm font-bold tracking-wider uppercase text-red-400 transition-colors border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]"
                         >
-                            Load more ({filtered.length - visibleCount} remaining)
+                            Load more ({sorted.length - visibleCount} remaining)
                         </button>
                     </div>
                 )}

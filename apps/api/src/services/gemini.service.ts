@@ -186,6 +186,116 @@ export class BackendGeminiService {
             return fallbackFn();
         }
     }
+    /**
+     * Generate a "Why Contact This Buyer?" explanation using Firecrawl + Gemini.
+     * 1. If buyer has a website → Firecrawl scrapes it for real company context
+     * 2. Gemini synthesizes a 2-3 sentence explanation with Google Search grounding
+     * 3. Cached 24h per buyer+crop
+     */
+    async generateBuyerExplanation(
+        buyerData: {
+            name: string;
+            type: string;
+            city: string;
+            state: string;
+            crop: string;
+            website?: string | null;
+            netPrice?: number | null;
+            benchmarkPrice?: number;
+            freightCost?: number | null;
+            railConfidence?: number | null;
+            contactPhone?: string | null;
+            verifiedStatus?: string | null;
+            intelScore?: number;
+            intelLabel?: string;
+            signals?: Array<{ name: string; points: number; maxPoints: number; reason: string }>;
+        }
+    ): Promise<string> {
+        if (!model) {
+            return this.buildFallbackExplanation(buyerData);
+        }
+
+        // Step 1: Try to scrape the buyer's website via Firecrawl for company context
+        let websiteContext = '';
+        if (buyerData.website) {
+            try {
+                const FirecrawlApp = (await import('@mendable/firecrawl-js')).default;
+                const firecrawlKey = (await import('../env.js')).env.FIRECRAWL_API_KEY;
+                if (firecrawlKey) {
+                    const fc = new FirecrawlApp({ apiKey: firecrawlKey });
+                    const result = await fc.scrape(buyerData.website, {
+                        formats: ['markdown'],
+                        timeout: 10000,
+                    } as any) as any;
+                    if (result.success && result.markdown) {
+                        // Take first 1500 chars to keep prompt lean
+                        websiteContext = result.markdown.slice(0, 1500);
+                    }
+                }
+            } catch (err) {
+                // Firecrawl failed — continue without website context
+                console.warn(`Firecrawl scrape failed for ${buyerData.name}:`, (err as Error).message);
+            }
+        }
+
+        // Step 2: Build the Gemini prompt with all available context
+        const signalSummary = buyerData.signals
+            ? buyerData.signals.map(s => `  ${s.name}: ${s.points}/${s.maxPoints} — ${s.reason}`).join('\n')
+            : 'No scoring data available';
+
+        const prompt = `
+You are Crop Intel's market analyst. Write a concise 2-3 sentence explanation of WHY a grain dealer should contact this buyer to sell ${buyerData.crop}.
+
+BUYER PROFILE:
+- Name: ${buyerData.name}
+- Type: ${buyerData.type}
+- Location: ${buyerData.city}, ${buyerData.state}
+- Intel Score: ${buyerData.intelScore ?? 'N/A'}/100 (${buyerData.intelLabel ?? 'Unknown'})
+- Net Price: ${buyerData.netPrice != null ? `$${buyerData.netPrice.toFixed(2)}/bu` : 'Unknown'}
+- Benchmark Price: ${buyerData.benchmarkPrice != null ? `$${buyerData.benchmarkPrice.toFixed(2)}/bu` : 'Unknown'}
+- Freight Cost: ${buyerData.freightCost != null ? `$${Math.abs(buyerData.freightCost).toFixed(2)}/bu` : 'Unknown'}
+- Rail Access: ${(buyerData.railConfidence ?? 0) >= 70 ? 'BNSF Confirmed' : (buyerData.railConfidence ?? 0) >= 40 ? 'Likely' : 'Unverified'}
+- Phone: ${buyerData.contactPhone || 'None on file'}
+- Website: ${buyerData.website || 'None'}
+- Verified: ${buyerData.verifiedStatus || 'unverified'}
+
+SCORING BREAKDOWN:
+${signalSummary}
+
+${websiteContext ? `WEBSITE CONTEXT (scraped from ${buyerData.website}):\n${websiteContext}\n` : ''}
+
+RULES:
+- Be specific about WHY this buyer matters for ${buyerData.crop} (e.g., ethanol plants consume corn, crush plants need soybeans)
+- Mention the price advantage if positive, or warn if pricing is below benchmark
+- If website context reveals capacity, products, or operations details, incorporate them
+- If the buyer type doesn't match the crop (e.g., ethanol plant for soybeans), say so clearly
+- Keep it to 2-3 sentences MAX. No bullet points. Professional tone.
+- Do NOT mention "Gemini", "AI", or "score calculation". Write as if you're a market advisor.
+
+Output ONLY the explanation text, no formatting or JSON.
+`;
+
+        try {
+            const result = await model.generateContent(prompt);
+            return result.response.text().trim();
+        } catch (error) {
+            console.error('Gemini buyer explanation error:', error);
+            return this.buildFallbackExplanation(buyerData);
+        }
+    }
+
+    private buildFallbackExplanation(buyerData: {
+        name: string; type: string; crop: string; city: string; state: string;
+        netPrice?: number | null; benchmarkPrice?: number;
+    }): string {
+        const typeLabel = buyerData.type.charAt(0).toUpperCase() + buyerData.type.slice(1);
+        const priceNote = buyerData.netPrice != null && buyerData.benchmarkPrice != null
+            ? buyerData.netPrice > buyerData.benchmarkPrice
+                ? `, with a net price $${(buyerData.netPrice - buyerData.benchmarkPrice).toFixed(2)}/bu above benchmark`
+                : `, though net price is $${(buyerData.benchmarkPrice - buyerData.netPrice).toFixed(2)}/bu below benchmark`
+            : '';
+        return `${buyerData.name} is a ${typeLabel.toLowerCase()} facility in ${buyerData.city}, ${buyerData.state}${priceNote}. Contact the grain desk to discuss ${buyerData.crop} delivery options.`;
+    }
 }
 
 export const backendGeminiService = new BackendGeminiService();

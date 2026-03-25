@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { Router } from 'express';
 import { z } from 'zod';
 import { backendGeminiService } from '../services/gemini.service.js';
+import { calculateBuyerIntelScore, type BuyerIntelInput } from '../services/buyerIntelScore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -231,6 +232,71 @@ aiRouter.post('/enrich-buyers', async (req, res, next) => {
 
         const data = await backendGeminiService.enrichBuyers(crop, parsed.buyers, parsed.oracle, () => fallbackData);
         res.json({ data });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// ── Buyer Intelligence Score + Explanation ───────────────────────────
+const buyerIntelRequestSchema = z.object({
+    crop: cropSchema,
+    buyerData: z.object({
+        name: z.string(),
+        type: z.string(),
+        city: z.string(),
+        state: z.string(),
+        netPrice: z.number().nullable().optional(),
+        benchmarkPrice: z.number().optional(),
+        railConfidence: z.number().nullable().optional(),
+        verifiedStatus: z.string().nullable().optional(),
+        hasPhone: z.boolean().optional(),
+        freightCost: z.number().nullable().optional(),
+        hasRealBid: z.boolean().optional(),
+        website: z.string().nullable().optional(),
+        contactPhone: z.string().nullable().optional(),
+    }),
+    withExplanation: z.boolean().optional().default(false),
+});
+
+aiRouter.post('/buyer-intel', async (req, res, next) => {
+    try {
+        const parsed = buyerIntelRequestSchema.parse(req.body ?? {});
+        const { crop, buyerData, withExplanation } = parsed;
+
+        // Step 1: Deterministic score (instant)
+        const intelInput: BuyerIntelInput = {
+            buyerType: buyerData.type,
+            crop: crop as any,
+            netPrice: buyerData.netPrice,
+            benchmarkPrice: buyerData.benchmarkPrice,
+            railConfidence: buyerData.railConfidence,
+            verifiedStatus: buyerData.verifiedStatus,
+            hasPhone: buyerData.hasPhone ?? !!buyerData.contactPhone,
+            freightCost: buyerData.freightCost,
+            hasRealBid: buyerData.hasRealBid,
+            website: buyerData.website,
+        };
+
+        const intelResult = calculateBuyerIntelScore(intelInput);
+
+        // Step 2: Gemini + Firecrawl explanation (on-demand, cached)
+        let explanation: string | null = null;
+        if (withExplanation) {
+            explanation = await backendGeminiService.generateBuyerExplanation({
+                ...buyerData,
+                crop,
+                intelScore: intelResult.score,
+                intelLabel: intelResult.label,
+                signals: intelResult.signals,
+            });
+        }
+
+        res.json({
+            data: {
+                ...intelResult,
+                explanation,
+            },
+        });
     } catch (error) {
         next(error);
     }

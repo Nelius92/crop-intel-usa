@@ -197,6 +197,8 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                         buyers={buyers}
                         onSelect={handleSelectBuyer}
                         allBuyers={buyers}
+                        selectedCrop={selectedCrop}
+                        benchmarkPrice={oracle?.benchmarkCashPrice}
                     />
                 </div>
             </div>
