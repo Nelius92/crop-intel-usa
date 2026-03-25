@@ -202,10 +202,10 @@ async function enqueueReview(
             await client.query(
                 `
                     UPDATE buyer_review_queue
-                    SET candidate_json = $3::jsonb
+                    SET candidate_json = $2::jsonb
                     WHERE id = $1
                 `,
-                [existing.rows[0].id, reasonCode, JSON.stringify(candidateJson)]
+                [existing.rows[0].id, JSON.stringify(candidateJson)]
             );
             return;
         }
