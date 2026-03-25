@@ -109,16 +109,22 @@ buyersRouter.get('/:id', async (req, res, next) => {
     }
 });
 
-// ── POST /sync — Trigger buyer contact sync (protected) ─────────────
+// ── POST /sync — Trigger buyer contact sync (protected, async) ──────
 const syncQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(500).optional(),
     staleDays: z.coerce.number().int().min(1).max(365).optional(),
     delayMs: z.coerce.number().int().min(50).max(2000).optional(),
 });
 
+let activeSyncStatus: {
+    running: boolean;
+    startedAt: string | null;
+    result: unknown | null;
+    error: string | null;
+} = { running: false, startedAt: null, result: null, error: null };
+
 buyersRouter.post('/sync', async (req, res, next) => {
     try {
-        // Auth: require bearer token matching GOOGLE_MAPS_API_KEY
         const authHeader = req.headers.authorization;
         const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
         const expectedToken = env.GOOGLE_MAPS_API_KEY;
@@ -131,21 +137,55 @@ buyersRouter.post('/sync', async (req, res, next) => {
             return res.status(503).json({ error: 'Database not configured' });
         }
 
+        if (activeSyncStatus.running) {
+            return res.status(409).json({
+                error: 'Sync already in progress',
+                startedAt: activeSyncStatus.startedAt,
+            });
+        }
+
         const parsed = syncQuerySchema.parse(req.body ?? {});
-        logger.info('Starting buyer contact sync', parsed);
+        logger.info('Starting buyer contact sync (async)', parsed);
 
-        // Dynamic import to avoid loading Google Places service on every request
+        // Mark as running and return 202 immediately
+        activeSyncStatus = {
+            running: true,
+            startedAt: new Date().toISOString(),
+            result: null,
+            error: null,
+        };
+
+        res.status(202).json({
+            message: 'Sync started',
+            startedAt: activeSyncStatus.startedAt,
+            checkStatus: '/api/buyers/sync/status',
+        });
+
+        // Fire-and-forget: run sync in background
         const { runBuyerContactSync } = await import('../services/buyer-contact-sync.js');
-
-        const summary = await runBuyerContactSync({
+        runBuyerContactSync({
             limit: parsed.limit ?? 200,
             staleDays: parsed.staleDays ?? 30,
             delayMs: parsed.delayMs ?? 200,
-        });
-
-        logger.info('Buyer contact sync completed', summary);
-        res.json({ data: summary });
+        })
+            .then((summary) => {
+                activeSyncStatus = { running: false, startedAt: activeSyncStatus.startedAt, result: summary, error: null };
+                logger.info('Buyer contact sync completed', summary);
+            })
+            .catch((err) => {
+                activeSyncStatus = { running: false, startedAt: activeSyncStatus.startedAt, result: null, error: String(err) };
+                logger.error('Buyer contact sync failed', { error: String(err) });
+            });
     } catch (error) {
         next(error);
     }
+});
+
+buyersRouter.get('/sync/status', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token || token !== env.GOOGLE_MAPS_API_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    res.json({ data: activeSyncStatus });
 });
