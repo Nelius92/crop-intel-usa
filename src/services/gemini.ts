@@ -15,7 +15,7 @@ const genAI = new GoogleGenerativeAI(API_KEY || '');
 export class GeminiService {
     // Use gemini-3-flash for latest speed, reasoning, and grounding
     private model = genAI.getGenerativeModel({
-        model: 'gemini-3-flash',
+        model: 'gemini-3-flash-preview',
         tools: [{ googleSearch: {} } as any]
     });
 

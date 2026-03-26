@@ -9,7 +9,7 @@ if (!API_KEY) {
 
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 const model = genAI ? genAI.getGenerativeModel({
-    model: 'gemini-3-flash',
+    model: 'gemini-3-flash-preview',
     tools: [{ googleSearch: {} } as any]
 }) : null;
 
