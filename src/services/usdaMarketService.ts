@@ -191,7 +191,70 @@ export const usdaMarketService = {
         return STATE_TO_REGION[state] || 'Central Plains'; // sensible default
     },
 
-    // Fetch latest regional adjustments from USDA AMS
+    // ── NEW: Per-state USDA basis map ──────────────────────────────────
+    // Fetches from backend /api/usda/regional-basis which aggregates
+    // ALL 22 state grain reports from USDA MARS API
+    getStateBasisMap: async (commodity: string = 'Corn'): Promise<Record<string, StateBasisData>> => {
+        const cacheKey = `state-basis-${commodity}`;
+        const cached = cacheService.get<Record<string, StateBasisData>>('usda', cacheKey);
+        if (cached) return cached;
+
+        try {
+            const response = await apiGetJson<{
+                success: boolean;
+                states?: Record<string, StateBasisData>;
+                source?: string;
+            }>(`/api/usda/regional-basis?commodity=${encodeURIComponent(commodity)}`);
+
+            if (response.states && Object.keys(response.states).length > 0) {
+                cacheService.set('usda', cacheKey, response.states, CACHE_TTL.USDA_MS);
+                console.log(`[USDA] State basis loaded: ${Object.keys(response.states).length} states for ${commodity}`);
+                return response.states;
+            }
+        } catch (error) {
+            console.warn('State basis API unavailable:', error);
+        }
+
+        // Return empty — caller should fall back to regional
+        return {};
+    },
+
+    // Get basis for a specific state, with cascading fallback:
+    //   1. Per-state USDA data (most accurate)
+    //   2. Regional fallback adjustments (month-old estimates)
+    //   3. Default -0.30
+    getStateBasis: (
+        state: string,
+        stateBasisMap: Record<string, StateBasisData>,
+        fallbackAdjustments: Record<string, RegionalAdjustment>
+    ): { basis: number; source: string; confidence: 'verified' | 'estimated' } => {
+        // Priority 1: Exact state USDA data
+        const stateData = stateBasisMap[state];
+        if (stateData && stateData.avgBasisDollars !== undefined) {
+            return {
+                basis: stateData.avgBasisDollars,
+                source: `USDA ${state}`,
+                confidence: 'estimated',
+            };
+        }
+
+        // Priority 2: Regional fallback
+        const region = STATE_TO_REGION[state] || 'Central Plains';
+        const regional = fallbackAdjustments[region];
+        if (regional) {
+            return {
+                basis: regional.basisAdjustment,
+                source: `${region} fallback`,
+                confidence: 'estimated',
+            };
+        }
+
+        // Priority 3: Default
+        return { basis: -0.30, source: 'default', confidence: 'estimated' };
+    },
+
+    // Legacy: Fetch regional adjustments (kept for backward compatibility)
+    // Now enhanced to use per-state data when available
     getRegionalAdjustments: async (): Promise<Record<string, RegionalAdjustment>> => {
         // Return cached if valid (60m TTL)
         const cached = cacheService.get<Record<string, RegionalAdjustment>>('usda', USDA_CACHE_KEY);
@@ -208,7 +271,6 @@ export const usdaMarketService = {
                 const parsedAdjustments = parseUSDAReport(response.data);
                 if (Object.keys(parsedAdjustments).length > 0) {
                     cacheService.set('usda', USDA_CACHE_KEY, parsedAdjustments, CACHE_TTL.USDA_MS);
-                    // USDA market data loaded via API proxy
                     return parsedAdjustments;
                 }
             }
@@ -222,7 +284,7 @@ export const usdaMarketService = {
         return fallback;
     },
 
-    // Get basis for a specific state
+    // Get basis for a specific state (legacy — kept for compatibility)
     getBasisForState: async (state: string): Promise<number> => {
         const adjustments = await usdaMarketService.getRegionalAdjustments();
         const region = STATE_TO_REGION[state] || 'Midwest';
@@ -241,7 +303,6 @@ export const usdaMarketService = {
             source: 'cached'
         };
         cacheService.set('usda', USDA_CACHE_KEY, current, CACHE_TTL.USDA_MS);
-        // Region basis updated silently
     },
 
     // Get data freshness info
@@ -257,6 +318,18 @@ export const usdaMarketService = {
         return { lastUpdated: 'Never', source: 'none' };
     }
 };
+
+// ── Per-state USDA basis data type ────────────────────────────────────
+export interface StateBasisData {
+    avgBasis: number;         // in cents (e.g., -75 for ND, +163 for CA)
+    avgBasisDollars: number;  // in dollars (e.g., -0.75, +1.63)
+    minBasis?: number;
+    maxBasis?: number;
+    avgPrice: number;
+    bidCount: number;
+    reportDate?: string;
+    source: 'usda-ams' | 'usda-ams-cached' | 'fallback';
+}
 
 // Parse USDA report data into regional adjustments
 function parseUSDAReport(data: any): Record<string, RegionalAdjustment> {
@@ -302,3 +375,4 @@ function determineTrend(item: any): 'UP' | 'DOWN' | 'FLAT' {
     if (item.change && item.change < 0) return 'DOWN';
     return 'FLAT';
 }
+

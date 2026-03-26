@@ -34,7 +34,9 @@ vi.mock('../usdaMarketService', () => ({
     usdaMarketService: {
         getRegionalAdjustments: async () => ({}),
         getRegionForState: () => 'Midwest',
-        getDataFreshness: () => ({ source: 'Mock', lastUpdated: 'Now' })
+        getDataFreshness: () => ({ source: 'Mock', lastUpdated: 'Now' }),
+        getStateBasisMap: async () => ({}),
+        getStateBasis: () => ({ basis: -0.30, source: 'test-fallback', confidence: 'estimated' }),
     }
 }));
 

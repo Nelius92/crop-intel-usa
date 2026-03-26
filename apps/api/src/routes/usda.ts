@@ -140,6 +140,207 @@ usdaRouter.get('/sunflower-report', async (_req, res) => {
     }
 });
 
+// ── Multi-state regional basis aggregator ─────────────────────────────
+// Fetches USDA grain bids for ALL states in parallel, returns per-state
+// average basis. This powers accurate pricing for every buyer location.
+const regionalBasisCache = new Map<string, { data: any; fetchedAt: number }>();
+const REGIONAL_BASIS_TTL_MS = 60 * 60 * 1000; // 60 minutes
+
+usdaRouter.get('/regional-basis', async (req, res) => {
+    try {
+        const commodity = String(req.query.commodity ?? 'Corn');
+        const cacheKey = `regional-basis-${commodity}`;
+
+        // Check in-memory cache
+        const cached = regionalBasisCache.get(cacheKey);
+        if (cached && Date.now() - cached.fetchedAt < REGIONAL_BASIS_TTL_MS) {
+            logger.info('Regional basis cache hit', { commodity, states: Object.keys(cached.data).length });
+            return res.json({
+                success: true,
+                source: 'usda-ams-cached',
+                degraded: false,
+                commodity,
+                states: cached.data,
+                stateCount: Object.keys(cached.data).length,
+                fetchedAt: new Date(cached.fetchedAt).toISOString(),
+            });
+        }
+
+        const apiKey = (env as any).USDA_API_KEY;
+        if (!apiKey) {
+            logger.warn('USDA_API_KEY not set for regional-basis');
+            return res.json({
+                success: false,
+                source: 'fallback',
+                degraded: true,
+                commodity,
+                states: buildFallbackStateBasis(),
+                stateCount: 0,
+                fetchedAt: new Date().toISOString(),
+            });
+        }
+
+        // De-duplicate report IDs (OR and WA share the same report)
+        const uniqueReports = new Map<number, string[]>();
+        for (const [state, reportId] of Object.entries(GRAIN_REPORT_IDS)) {
+            if (!uniqueReports.has(reportId)) {
+                uniqueReports.set(reportId, []);
+            }
+            uniqueReports.get(reportId)!.push(state);
+        }
+
+        logger.info('Fetching USDA regional basis for all states', {
+            commodity,
+            uniqueReports: uniqueReports.size,
+            totalStates: Object.keys(GRAIN_REPORT_IDS).length,
+        });
+
+        const commodityFilter = commodity.toLowerCase().replace('yellow ', '');
+        const stateBasis: Record<string, any> = {};
+
+        // Fetch all unique reports in parallel (with per-request timeout)
+        const fetchPromises = Array.from(uniqueReports.entries()).map(
+            async ([reportId, states]) => {
+                try {
+                    const url = `https://marsapi.ams.usda.gov/services/v1.2/reports/${reportId}?allSections=true`;
+                    const response = await fetch(url, {
+                        headers: {
+                            Accept: 'application/json',
+                            Authorization: `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+                        },
+                        signal: AbortSignal.timeout(15000),
+                    });
+
+                    if (!response.ok) {
+                        logger.warn(`USDA report ${reportId} returned ${response.status}`);
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    // Extract Report Detail section
+                    let results: any[] = [];
+                    if (Array.isArray(data)) {
+                        const detailSection = data.find(
+                            (s: any) => s.reportSection === 'Report Detail'
+                        );
+                        results = detailSection?.results || [];
+                        if (results.length === 0 && data.length > 0 && data[0].commodity) {
+                            results = data;
+                        }
+                    }
+
+                    // Filter to matching commodity + current bids
+                    const bids = results.filter((r: any) => {
+                        const rc = (r.commodity || '').toLowerCase();
+                        const rClass = (r.class || '').toLowerCase();
+                        return (
+                            r.current === 'Yes' &&
+                            (rc.includes(commodityFilter) || rClass.includes(commodityFilter))
+                        );
+                    });
+
+                    if (bids.length === 0) return;
+
+                    // Calculate average basis and price for these bids
+                    let totalBasis = 0;
+                    let totalPrice = 0;
+                    let basisCount = 0;
+                    let priceCount = 0;
+                    let minBasis = Infinity;
+                    let maxBasis = -Infinity;
+
+                    for (const bid of bids) {
+                        const bMin = bid['basis Min'];
+                        const bMax = bid['basis Max'];
+                        if (bMin != null && bMax != null) {
+                            const avg = (bMin + bMax) / 2;
+                            totalBasis += avg;
+                            basisCount++;
+                            if (avg < minBasis) minBasis = avg;
+                            if (avg > maxBasis) maxBasis = avg;
+                        }
+                        if (bid.avg_price != null) {
+                            totalPrice += bid.avg_price;
+                            priceCount++;
+                        }
+                    }
+
+                    const avgBasis = basisCount > 0 ? totalBasis / basisCount : 0;
+                    const avgPrice = priceCount > 0 ? totalPrice / priceCount : 0;
+                    const reportDate = bids[0]?.report_date || '';
+
+                    // Assign to each state that uses this report
+                    for (const state of states) {
+                        stateBasis[state] = {
+                            avgBasis: parseFloat(avgBasis.toFixed(1)),       // in cents
+                            avgBasisDollars: parseFloat((avgBasis / 100).toFixed(4)), // in dollars
+                            minBasis: parseFloat((minBasis === Infinity ? 0 : minBasis).toFixed(1)),
+                            maxBasis: parseFloat((maxBasis === -Infinity ? 0 : maxBasis).toFixed(1)),
+                            avgPrice: parseFloat(avgPrice.toFixed(2)),
+                            bidCount: bids.length,
+                            reportDate,
+                            source: 'usda-ams' as const,
+                        };
+                    }
+                } catch (err) {
+                    logger.warn(`Failed to fetch USDA report ${reportId}`, errorMeta(err));
+                }
+            }
+        );
+
+        await Promise.all(fetchPromises);
+
+        // Cache the results
+        regionalBasisCache.set(cacheKey, { data: stateBasis, fetchedAt: Date.now() });
+
+        logger.info('Regional basis aggregation complete', {
+            commodity,
+            statesWithData: Object.keys(stateBasis).length,
+        });
+
+        return res.json({
+            success: true,
+            source: 'usda-ams',
+            degraded: false,
+            commodity,
+            states: stateBasis,
+            stateCount: Object.keys(stateBasis).length,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        logger.error('Regional basis aggregation error', errorMeta(error));
+        return res.json({
+            success: false,
+            source: 'fallback',
+            degraded: true,
+            commodity: String(req.query.commodity ?? 'Corn'),
+            states: buildFallbackStateBasis(),
+            stateCount: 0,
+            fetchedAt: new Date().toISOString(),
+        });
+    }
+});
+
+function buildFallbackStateBasis(): Record<string, any> {
+    return {
+        ND: { avgBasis: -75, avgBasisDollars: -0.75, avgPrice: 3.90, bidCount: 0, source: 'fallback' },
+        SD: { avgBasis: -70, avgBasisDollars: -0.70, avgPrice: 3.95, bidCount: 0, source: 'fallback' },
+        MN: { avgBasis: -65, avgBasisDollars: -0.65, avgPrice: 4.00, bidCount: 0, source: 'fallback' },
+        IA: { avgBasis: -38, avgBasisDollars: -0.38, avgPrice: 4.25, bidCount: 0, source: 'fallback' },
+        IL: { avgBasis: -25, avgBasisDollars: -0.25, avgPrice: 4.40, bidCount: 0, source: 'fallback' },
+        NE: { avgBasis: -30, avgBasisDollars: -0.30, avgPrice: 4.35, bidCount: 0, source: 'fallback' },
+        KS: { avgBasis: -30, avgBasisDollars: -0.30, avgPrice: 4.35, bidCount: 0, source: 'fallback' },
+        TX: { avgBasis: 87, avgBasisDollars: 0.87, avgPrice: 5.50, bidCount: 0, source: 'fallback' },
+        CA: { avgBasis: 163, avgBasisDollars: 1.63, avgPrice: 6.30, bidCount: 0, source: 'fallback' },
+        CO: { avgBasis: -20, avgBasisDollars: -0.20, avgPrice: 4.45, bidCount: 0, source: 'fallback' },
+        OH: { avgBasis: -25, avgBasisDollars: -0.25, avgPrice: 4.40, bidCount: 0, source: 'fallback' },
+        IN: { avgBasis: -20, avgBasisDollars: -0.20, avgPrice: 4.45, bidCount: 0, source: 'fallback' },
+        WA: { avgBasis: 25, avgBasisDollars: 0.25, avgPrice: 4.90, bidCount: 0, source: 'fallback' },
+        OR: { avgBasis: 25, avgBasisDollars: 0.25, avgPrice: 4.90, bidCount: 0, source: 'fallback' },
+    };
+}
+
 // ── Futures price proxy ───────────────────────────────────────────────
 usdaRouter.get('/futures-price', async (_req, res) => {
     try {

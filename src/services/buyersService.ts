@@ -149,7 +149,13 @@ export const fetchRealBuyersFromGoogle = async (
     // Get crop-specific benchmark (Hankinson for corn, Enderlin for sunflowers)
     const benchmark = marketDataService.getBenchmark(selectedCrop);
 
-    // Pre-load USDA regional basis adjustments for fallback pricing
+    // Pre-load USDA per-state basis data (fetches from all 22 state reports)
+    // Map the crop name to the USDA commodity name
+    const usdaCommodity = selectedCrop === 'Yellow Corn' ? 'Corn'
+        : selectedCrop === 'White Corn' ? 'Corn'
+        : selectedCrop;
+    const stateBasisMap = await usdaMarketService.getStateBasisMap(usdaCommodity);
+    // Also keep regional fallback for states not covered by USDA reports
     const usdaAdjustments = await usdaMarketService.getRegionalAdjustments();
 
     // Calculate dynamic prices for each buyer
@@ -157,7 +163,8 @@ export const fetchRealBuyersFromGoogle = async (
     const dynamicBuyers = await Promise.all(filteredBuyers.map(async (buyer) => {
         // ── Price Calculation ──
         // Priority 1: Real scraped bid (from bid-pipeline → DB → API)
-        // Priority 2: USDA regional basis estimate (Futures + Regional Basis)
+        // Priority 2: USDA per-state basis (Futures + State-Level Basis)
+        // Priority 3: Regional fallback basis
         const buyerAny = buyer as Buyer & { cashBid?: number | string | null; bidSource?: string | null };
         const hasRealBid = buyerAny.cashBid != null;
         let newCashPrice: number;
@@ -175,13 +182,17 @@ export const fetchRealBuyersFromGoogle = async (
             basisConfidence = 'verified';
             basisSourceLabel = buyerAny.bidSource || 'Scraped Bid';
         } else {
-            // Use USDA regional basis as an estimated price
-            const region = usdaMarketService.getRegionForState(buyer.state);
-            const regionalAdj = usdaAdjustments[region];
-            basis = regionalAdj?.basisAdjustment ?? -0.30;
+            // Use USDA per-state basis — this is the key improvement
+            // Each state now gets its own accurate basis from the USDA MARS API
+            const basisInfo = usdaMarketService.getStateBasis(
+                buyer.state,
+                stateBasisMap,
+                usdaAdjustments
+            );
+            basis = basisInfo.basis;
             newCashPrice = parseFloat((currentFutures + basis).toFixed(2));
-            basisConfidence = 'estimated';
-            basisSourceLabel = `USDA ${region} est.`;
+            basisConfidence = basisInfo.confidence;
+            basisSourceLabel = basisInfo.source;
         }
 
         // Calculate Freight FROM Campbell, MN TO this buyer (cached 12h)
