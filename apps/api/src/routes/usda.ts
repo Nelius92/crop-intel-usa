@@ -57,42 +57,21 @@ usdaRouter.get('/grain-report', async (req, res) => {
         // Determine the right report for this state
         const reportId = GRAIN_REPORT_IDS[state] || GRAIN_REPORT_IDS.ND;
 
-        // Fetch today's data with all sections
-        const today = new Date();
-        const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-
-        const url = `https://marsapi.ams.usda.gov/services/v1.2/reports/${reportId}?q=report_date=${dateStr}&allSections=true`;
+        // Fetch with allSections=true — no date filter = latest report data
+        // The API returns sections: [Report Header, Report Detail]
+        // Report Detail contains the actual bid data with commodity, prices, basis
+        const url = `https://marsapi.ams.usda.gov/services/v1.2/reports/${reportId}?allSections=true`;
 
         const response = await fetch(url, {
             headers: {
                 'Accept': 'application/json',
                 'Authorization': `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
             },
-            signal: AbortSignal.timeout(15000),
+            signal: AbortSignal.timeout(20000),
         });
 
         if (!response.ok) {
-            // If today's report isn't published yet, try yesterday
-            const yesterday = new Date(today.getTime() - 86400000);
-            const ydateStr = `${String(yesterday.getMonth() + 1).padStart(2, '0')}/${String(yesterday.getDate()).padStart(2, '0')}/${yesterday.getFullYear()}`;
-            
-            const yResponse = await fetch(
-                `https://marsapi.ams.usda.gov/services/v1.2/reports/${reportId}?q=report_date=${ydateStr}&allSections=true`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Authorization': `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
-                    },
-                    signal: AbortSignal.timeout(15000),
-                }
-            );
-
-            if (!yResponse.ok) {
-                throw new Error(`USDA API returned ${yResponse.status} for ${reportId}`);
-            }
-
-            const yData = await yResponse.json();
-            return res.json(parseGrainBidResponse(yData, commodity, state));
+            throw new Error(`USDA API returned ${response.status} for report ${reportId}`);
         }
 
         const data = await response.json();
@@ -213,17 +192,32 @@ usdaRouter.get('/futures-price', async (_req, res) => {
 
 // ── Parse MARS v1.2 grain bid response ────────────────────────────────
 function parseGrainBidResponse(data: any, commodity: string, state: string) {
-    const results = Array.isArray(data) ? data : data?.results || [];
-    
+    // The API returns sections: [{reportSection:"Report Header", results:[...]}, {reportSection:"Report Detail", results:[...]}]
+    // We need the "Report Detail" section which has the actual bid data
+    let results: any[] = [];
+    if (Array.isArray(data)) {
+        const detailSection = data.find((s: any) => s.reportSection === 'Report Detail');
+        results = detailSection?.results || [];
+        // If no section structure, try flat array
+        if (results.length === 0 && data.length > 0 && data[0].commodity) {
+            results = data;
+        }
+    } else {
+        results = data?.results || [];
+    }
+
+    logger.info('USDA Report Detail parsed', { totalBids: results.length, state });
+
     // Map commodity name to a match filter
     const commodityFilter = commodity.toLowerCase().replace('yellow ', '');
 
-    // Filter to matching commodity
+    // Filter to matching commodity + current (most recent report)
     const bids = results.filter((r: any) => {
         const rc = (r.commodity || '').toLowerCase();
         const rClass = (r.class || '').toLowerCase();
+        const isCurrent = r.current === 'Yes';
         // Match "Corn" for Yellow Corn, "Soybeans" for Soybeans, etc.
-        return rc.includes(commodityFilter) || rClass.includes(commodityFilter);
+        return isCurrent && (rc.includes(commodityFilter) || rClass.includes(commodityFilter));
     });
 
     if (bids.length === 0) {
