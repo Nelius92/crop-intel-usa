@@ -22,6 +22,9 @@ const envSchema = z.object({
     // Firecrawl (daily bid scraping pipeline)
     FIRECRAWL_API_KEY: z.string().min(3).optional(),
 
+    // USDA AMS MARS API (grain reports — register at mymarketnews.ams.usda.gov)
+    USDA_API_KEY: z.string().min(3).optional(),
+
     // Redis (server-side cache — Upstash or Railway Redis)
     REDIS_URL: z.string().url().optional(),
 

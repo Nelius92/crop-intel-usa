@@ -13,11 +13,10 @@ if (!API_KEY) {
 const genAI = new GoogleGenerativeAI(API_KEY || '');
 
 export class GeminiService {
-    // Use gemini-2.0-flash-exp for latest features and speed
+    // Use gemini-3-flash for latest speed, reasoning, and grounding
     private model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
-        // @ts-expect-error - googleSearch is valid for gemini-2.0-flash but missing in current SDK types
-        tools: [{ googleSearch: {} }]
+        model: 'gemini-3-flash',
+        tools: [{ googleSearch: {} } as any]
     });
 
     // Helper to simulate live market ticks
