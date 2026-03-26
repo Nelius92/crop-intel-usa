@@ -13,9 +13,10 @@ if (!API_KEY) {
 const genAI = new GoogleGenerativeAI(API_KEY || '');
 
 export class GeminiService {
-    // Use gemini-3-flash for latest speed, reasoning, and grounding
+    // gemini-2.5-flash: best stable model with Google Search grounding on free tier
+    // (gemini-3-flash-preview doesn't support search grounding on free tier)
     private model = genAI.getGenerativeModel({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.5-flash',
         tools: [{ googleSearch: {} } as any]
     });
 

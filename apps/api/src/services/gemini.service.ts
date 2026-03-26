@@ -10,7 +10,8 @@ if (!API_KEY) {
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 const model = genAI ? genAI.getGenerativeModel({
     model: 'gemini-3-flash-preview',
-    tools: [{ googleSearch: {} } as any]
+    // Note: googleSearch grounding requires paid tier for preview models.
+    // We use Firecrawl for real-time web context instead.
 }) : null;
 
 export class BackendGeminiService {
