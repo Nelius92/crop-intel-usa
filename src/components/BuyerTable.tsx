@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Buyer, CropType, RailConfidenceLevel } from '../types';
-import { Train, Filter, X, ShieldCheck, Search, Sparkles } from 'lucide-react';
+import { Train, Filter, X, ShieldCheck, Search, Sparkles, AlertTriangle, CircleDot } from 'lucide-react';
 import { calculateBuyerIntelScore } from '../services/buyerIntelService';
 
 const RAIL_BADGE: Record<RailConfidenceLevel, { label: string; color: string }> = {
@@ -33,6 +33,49 @@ const INTEL_BADGE_STYLES: Record<string, string> = {
     gray: 'bg-slate-500/15 text-slate-500 border-slate-500/30',
 };
 
+const BUYER_STATUS_BADGE: Record<string, { label: string; color: string; icon: 'check' | 'dot' | 'warn' }> = {
+    confirmed_buyer: { label: 'CONFIRMED', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', icon: 'check' },
+    likely_buyer:    { label: 'LIKELY', color: 'text-sky-400 bg-sky-500/10 border-sky-500/20', icon: 'dot' },
+    needs_verification: { label: 'UNCONFIRMED', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20', icon: 'warn' },
+    suspect:         { label: 'SUSPECT', color: 'text-red-400 bg-red-500/10 border-red-500/20', icon: 'warn' },
+};
+
+const StatusBadge: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
+    const status = buyer.buyerStatus || 'likely_buyer';
+    const cfg = BUYER_STATUS_BADGE[status] || BUYER_STATUS_BADGE.likely_buyer;
+    return (
+        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border ${cfg.color}`}
+            title={buyer.statusReason || status}>
+            {cfg.icon === 'check' ? <ShieldCheck size={9} /> : cfg.icon === 'warn' ? <AlertTriangle size={9} /> : <CircleDot size={9} />}
+            {cfg.label}
+        </span>
+    );
+};
+
+const PriceSourceBadge: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
+    // Determine price source from provenance confidence
+    let source = buyer.priceSource || 'usda_estimate';
+    if (!buyer.priceSource && buyer.provenance) {
+        const confidence = buyer.provenance.basis.confidence;
+        if (confidence === 'verified') source = 'live_bid';
+        else if (confidence === 'estimated') source = 'usda_estimate';
+        else source = 'default';
+    }
+    const config: Record<string, { label: string; color: string }> = {
+        live_bid:     { label: '● LIVE', color: 'text-emerald-400' },
+        usda_estimate:{ label: '◐ USDA EST', color: 'text-amber-400' },
+        stale:        { label: '○ STALE', color: 'text-red-400' },
+        default:      { label: '○ DEFAULT', color: 'text-slate-500' },
+    };
+    const cfg = config[source] || config.usda_estimate;
+    return (
+        <span className={`text-[9px] font-mono font-bold ${cfg.color} opacity-70`} 
+            title={`Price is ${source === 'live_bid' ? 'a real scraped bid' : source === 'usda_estimate' ? 'estimated from USDA state average' : source === 'stale' ? 'older than 7 days' : 'a fallback default'}`}>
+            {cfg.label}
+        </span>
+    );
+};
+
 interface BuyerTableProps {
     buyers: Buyer[];
     onSelect: (buyer: Buyer) => void;
@@ -59,7 +102,8 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
 
     // Apply client-side filters
     const filtered = useMemo(() => {
-        let result = [...buyers];
+        // Always filter out suspect/non-buyers
+        let result = buyers.filter(b => b.buyerStatus !== 'suspect');
         if (filterType) result = result.filter(b => b.type === filterType);
         if (filterState) result = result.filter(b => b.state === filterState);
         if (bnsfOnly) result = result.filter(b => (b.railConfidence ?? 0) >= 70);
@@ -238,7 +282,10 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                                             <ShieldCheck size={14} className="text-red-500 flex-shrink-0" />
                                         )}
                                     </div>
-                                    <div className="text-xs text-slate-500 font-mono mt-1">{buyer.contactPhone || 'No Phone'}</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-slate-500 font-mono">{buyer.contactPhone || 'No Phone'}</span>
+                                        <StatusBadge buyer={buyer} />
+                                    </div>
                                 </div>
 
                                 {/* Intel Score Column */}
@@ -271,14 +318,15 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                                 </div>
 
                                 {/* Basis Column */}
-                                <div className="text-right text-sm font-mono font-medium">
+                                <div className="text-right flex flex-col items-end">
                                     {buyer.basis != null ? (
-                                        <span className={`${buyer.basis > 0 ? 'text-emerald-400' : buyer.basis < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                                        <span className={`text-sm font-mono font-medium ${buyer.basis > 0 ? 'text-emerald-400' : buyer.basis < 0 ? 'text-red-400' : 'text-slate-400'}`}>
                                             {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
                                         </span>
                                     ) : (
                                         <span className="text-slate-600 text-[11px] tracking-wider">NO BID</span>
                                     )}
+                                    <PriceSourceBadge buyer={buyer} />
                                 </div>
 
                                 {/* Cash Price Column */}

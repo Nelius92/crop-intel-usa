@@ -433,7 +433,16 @@ export async function upsertScrapedBids(bids: ScrapedBid[]): Promise<{
 
 /** BNSF corridor states to scrape from Barchart */
 const BNSF_STATES = [
-    'ND',
+    // Northern Plains (home territory)
+    'ND', 'SD', 'MN', 'MT', 'WY',
+    // Central Corridor
+    'NE', 'KS', 'IA', 'MO', 'CO',
+    // Southern Corridor
+    'TX', 'OK', 'AR', 'LA', 'MS', 'AL', 'TN',
+    // Western Corridor
+    'CA', 'WA', 'OR', 'ID', 'NM',
+    // Eastern Corridor
+    'IL', 'WI', 'IN', 'OH',
 ];
 
 export interface PipelineResult {
@@ -450,6 +459,7 @@ export interface PipelineResult {
 /**
  * Run the full daily bid scraping pipeline.
  * Called by the cron job at 5:00 AM CT on weekdays.
+ * Scrapes Barchart (all BNSF states) + Bushel portals.
  */
 export async function runDailyBidPipeline(): Promise<PipelineResult> {
     const startedAt = new Date().toISOString();
@@ -457,25 +467,59 @@ export async function runDailyBidPipeline(): Promise<PipelineResult> {
     const errors: string[] = [];
     let statesScraped = 0;
 
-    logger.info('=== Starting Daily Bid Pipeline ===', { startedAt });
+    logger.info('=== Starting Daily Bid Pipeline ===', {
+        startedAt,
+        totalStates: BNSF_STATES.length,
+        bushelPortals: BUSHEL_PORTALS.length,
+    });
 
-    // Phase 1: Scrape Barchart cash grain by state
-    for (const state of BNSF_STATES) {
+    // Phase 1: Scrape Barchart cash grain — batched 5 states at a time
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < BNSF_STATES.length; i += BATCH_SIZE) {
+        const batch = BNSF_STATES.slice(i, i + BATCH_SIZE);
+        logger.info(`Scraping Barchart batch ${Math.floor(i / BATCH_SIZE) + 1}`, {
+            states: batch,
+        });
+
+        const batchResults = await Promise.allSettled(
+            batch.map(async (state) => {
+                const bids = await scrapeBarchartState(state);
+                statesScraped++;
+                return { state, bids };
+            })
+        );
+
+        for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+                allBids.push(...result.value.bids);
+            } else {
+                const msg = `Barchart batch error: ${result.reason}`;
+                errors.push(msg);
+                logger.error(msg);
+            }
+        }
+
+        // Rate limit between batches
+        if (i + BATCH_SIZE < BNSF_STATES.length) {
+            await sleep(3000);
+        }
+    }
+
+    // Phase 2: Scrape Bushel-powered portals
+    logger.info('Scraping Bushel portals', { count: BUSHEL_PORTALS.length });
+    for (const portal of BUSHEL_PORTALS) {
         try {
-            const stateBids = await scrapeBarchartState(state);
-            allBids.push(...stateBids);
-            statesScraped++;
-
-            // Rate limiting — be nice to Barchart
-            await sleep(2000);
+            const portalBids = await scrapeBushelPortal(portal);
+            allBids.push(...portalBids);
+            await sleep(1500);
         } catch (error) {
-            const msg = `Barchart ${state}: ${error instanceof Error ? error.message : String(error)}`;
+            const msg = `Bushel ${portal.name}: ${error instanceof Error ? error.message : String(error)}`;
             errors.push(msg);
             logger.error(msg);
         }
     }
 
-    // Phase 1.5: Direct Scoular Scrape
+    // Phase 2.5: Direct Scoular Scrape (may overlap with Bushel but has custom parser)
     try {
         const scoularBids = await scrapeScoularBids();
         allBids.push(...scoularBids);
@@ -485,7 +529,12 @@ export async function runDailyBidPipeline(): Promise<PipelineResult> {
         logger.error(msg);
     }
 
-    // Phase 2: Upsert bids into Postgres
+    logger.info('Scraping complete. Starting upsert phase.', {
+        totalBidsFound: allBids.length,
+        statesScraped,
+    });
+
+    // Phase 3: Upsert bids into Postgres
     const { matched, updated, unmatched } = await upsertScrapedBids(allBids);
 
     const endedAt = new Date().toISOString();
@@ -497,13 +546,118 @@ export async function runDailyBidPipeline(): Promise<PipelineResult> {
         totalBidsFound: allBids.length,
         matched,
         updated,
-        unmatched: [...new Set(unmatched)].slice(0, 20), // top 20 unique unmatched
+        unmatched: [...new Set(unmatched)].slice(0, 50),
         errors,
     };
 
     logger.info('=== Daily Bid Pipeline Complete ===', result);
 
     return result;
+}
+
+// -- Bushel Portal Configs --
+
+interface BushelPortal {
+    name: string;
+    url: string;
+    states: string[];
+}
+
+const BUSHEL_PORTALS: BushelPortal[] = [
+    { name: 'Scoular', url: 'https://portal.bushelpowered.com/scoular/cash-bids', states: ['KS', 'NE', 'CO'] },
+    { name: 'CHS Farmers Alliance', url: 'https://portal.bushelpowered.com/chsfarmersalliance/cash-bids', states: ['MN', 'ND', 'SD', 'MT'] },
+    { name: 'Gavilon', url: 'https://portal.bushelpowered.com/gavilon/cash-bids', states: ['NE', 'IA', 'KS', 'TX'] },
+    { name: 'Premier Companies', url: 'https://portal.bushelpowered.com/premierag/cash-bids', states: ['TX', 'KS', 'OK'] },
+    { name: 'AGP', url: 'https://portal.bushelpowered.com/agp/cash-bids', states: ['NE', 'IA', 'MO', 'MN'] },
+    { name: 'CHS Dakota Plains', url: 'https://portal.bushelpowered.com/chsdakotaplainsag/cash-bids', states: ['ND', 'MN'] },
+    { name: 'CHS Northern Grain', url: 'https://portal.bushelpowered.com/chsnortherngrain/cash-bids', states: ['MN', 'ND'] },
+    { name: 'United Cooperative', url: 'https://portal.bushelpowered.com/unitedcooperative/cash-bids', states: ['WI', 'MN'] },
+];
+
+async function scrapeBushelPortal(portal: BushelPortal): Promise<ScrapedBid[]> {
+    const fc = getFirecrawl();
+    const bids: ScrapedBid[] = [];
+
+    try {
+        logger.info(`Scraping Bushel portal: ${portal.name}`, { url: portal.url });
+
+        const result = await fc.scrape(portal.url, {
+            formats: ['markdown'],
+            waitFor: 5000,
+        }) as any;
+
+        if (!result.markdown) {
+            logger.warn(`Bushel portal returned no content: ${portal.name}`);
+            return bids;
+        }
+
+        const lines = (result.markdown as string).split('\n').map((l: string) => l.trim()).filter(Boolean);
+        const now = new Date().toISOString();
+
+        let currentLocation = '';
+        let currentCommodity = '';
+        let headersFound = false;
+        let valuesBuffer: string[] = [];
+
+        for (const line of lines) {
+            if (line.startsWith('##### ')) {
+                currentLocation = line.replace('##### ', '').split(',')[0].trim();
+                headersFound = false;
+                valuesBuffer = [];
+                continue;
+            }
+            if (line.startsWith('###### ')) {
+                currentCommodity = line.replace('###### ', '').trim();
+                headersFound = false;
+                valuesBuffer = [];
+                continue;
+            }
+            if (line === 'Futures Month') {
+                headersFound = true;
+                valuesBuffer = [];
+                continue;
+            }
+            if (line === '* * *' || line.includes('---')) {
+                headersFound = false;
+                valuesBuffer = [];
+                continue;
+            }
+
+            if (headersFound && currentLocation && currentCommodity) {
+                valuesBuffer.push(line);
+                if (valuesBuffer.length === 6) {
+                    const [delivery, bidStr, basisStr] = valuesBuffer;
+
+                    if (bidStr !== '—' && !isNaN(parseFloat(bidStr))) {
+                        let commodity = currentCommodity;
+                        if (commodity === 'YC') commodity = 'Corn';
+                        else if (commodity === 'YSB') commodity = 'Soybeans';
+                        else if (commodity === 'HRWW') commodity = 'Wheat';
+                        else if (commodity === 'SOR') commodity = 'Sorghum';
+
+                        bids.push({
+                            facilityName: `${portal.name} ${currentLocation}`,
+                            commodity,
+                            cashBid: parseFloat(bidStr),
+                            basis: basisStr !== '—' ? parseFloat(basisStr) : null,
+                            deliveryPeriod: delivery,
+                            source: portal.url,
+                            scrapedAt: now,
+                        });
+                    }
+                    valuesBuffer = [];
+                }
+            }
+        }
+
+        logger.info(`Bushel portal scraped: ${portal.name}`, { bidCount: bids.length });
+    } catch (error) {
+        logger.error(`Bushel portal error: ${portal.name}`, {
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+
+    return bids;
 }
 
 function sleep(ms: number): Promise<void> {

@@ -109,6 +109,11 @@ export interface Buyer extends Coordinates {
     railConfidence?: number;     // 0-100 BNSF rail-served confidence (legacy)
     dataSource?: string;         // Legacy compat
     provenance?: PriceProvenance; // Trust Layer
+    // Data quality fields
+    buyerStatus?: 'confirmed_buyer' | 'likely_buyer' | 'needs_verification' | 'suspect';
+    statusConfidence?: number;   // 0-100
+    statusReason?: string;
+    priceSource?: 'live_bid' | 'usda_estimate' | 'stale' | 'default';
 }
 
 export interface MarketOracle {
