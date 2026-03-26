@@ -11,99 +11,153 @@ function errorMeta(error: unknown) {
     return { error: String(error) };
 }
 
-// ── Grain report proxy ────────────────────────────────────────────────
-// Strategy:
-//  1. Try authenticated MARS v1.2 API (if USDA_API_KEY is set)
-//  2. Fall back to public v3.1 grain report metadata
-//  3. Fall back to hardcoded regional data
+// ── MARS API v1.2 Report IDs per state ──────────────────────────────
+// Each maps to the daily grain bids report for that geographic region
+const GRAIN_REPORT_IDS: Record<string, number> = {
+    ND: 3878, // North Dakota Daily Grain Bids
+    SD: 3186, // South Dakota Daily Grain Bids
+    MN: 3049, // Southern Minnesota Daily Grain Bids  
+    IA: 2850, // Iowa Daily Cash Grain Bids
+    NE: 3225, // Nebraska Daily Elevator Grain Bids
+    KS: 2886, // Kansas Daily Grain Bids
+    TX: 2711, // Texas Daily Grain Bids
+    CO: 2912, // Colorado Daily Grain Bids
+    MT: 2771, // Montana Daily Elevator Grain Bids
+    IL: 3192, // Illinois Grain Bids
+    MO: 2932, // Missouri Daily Grain Bids
+    OK: 3100, // Oklahoma Daily Grain Bids
+    AR: 2960, // Arkansas Daily Grain Bids
+    OH: 2851, // Ohio Daily Grain Bids
+    IN: 3463, // Indiana Grain Bids
+    MS: 2928, // Mississippi Daily Grain Bids
+    TN: 3088, // Tennessee Daily Grain Bids
+    KY: 2892, // Kentucky Daily Grain Bids
+    CA: 3146, // California Grain Bids
+    OR: 3148, // Portland Daily Grain Bids (PNW)
+    WA: 3148, // Portland Daily Grain Bids (PNW)
+    WY: 3239, // Wyoming Daily Grain Bids
+};
+
+// Sunflower-specific report
+const SUNFLOWER_REPORT_ID = 2887; // National Daily Sunflower, Canola, Millet, and Flaxseed Report
+
+// ── Grain report proxy (USDA MARS v1.2) ──────────────────────────────
 usdaRouter.get('/grain-report', async (req, res) => {
     try {
         const commodity = String(req.query.commodity ?? 'Corn');
-        logger.info('Fetching USDA grain report', { commodity });
+        const state = String(req.query.state ?? 'ND');
+        logger.info('Fetching USDA grain report', { commodity, state });
 
-        // Strategy 1: Authenticated MARS v1.2 API (best data quality)
         const apiKey = (env as any).USDA_API_KEY;
-        if (apiKey) {
-            try {
-                const authResponse = await fetch(
-                    `https://marsapi.ams.usda.gov/services/v1.2/reports/LM_GR110?q=commodity=${encodeURIComponent(commodity)}`,
-                    {
-                        headers: {
-                            'Accept': 'application/json',
-                            'Authorization': `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
-                        },
-                        signal: AbortSignal.timeout(10000),
-                    }
-                );
-
-                if (authResponse.ok) {
-                    const data = await authResponse.json();
-                    logger.info('USDA grain report from authenticated v1.2 API', { commodity });
-                    return res.json({
-                        success: true,
-                        degraded: false,
-                        source: 'usda-ams',
-                        data,
-                        fetchedAt: new Date().toISOString(),
-                    });
-                }
-                logger.warn('USDA v1.2 auth API failed', { status: authResponse.status });
-            } catch (err) {
-                logger.warn('USDA v1.2 auth API error', errorMeta(err));
-            }
+        if (!apiKey) {
+            logger.warn('USDA_API_KEY not set, returning fallback data');
+            return res.json(buildFallbackResponse());
         }
 
-        // Strategy 2: Public v3.1 grain reports (no auth needed, limited data)
-        try {
-            const pubResponse = await fetch(
-                'https://marsapi.ams.usda.gov/services/v3.1/public/listPublishedReports?format=json',
-                { signal: AbortSignal.timeout(8000) }
+        // Determine the right report for this state
+        const reportId = GRAIN_REPORT_IDS[state] || GRAIN_REPORT_IDS.ND;
+
+        // Fetch today's data with all sections
+        const today = new Date();
+        const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+
+        const url = `https://marsapi.ams.usda.gov/services/v1.2/reports/${reportId}?q=report_date=${dateStr}&allSections=true`;
+
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+            },
+            signal: AbortSignal.timeout(15000),
+        });
+
+        if (!response.ok) {
+            // If today's report isn't published yet, try yesterday
+            const yesterday = new Date(today.getTime() - 86400000);
+            const ydateStr = `${String(yesterday.getMonth() + 1).padStart(2, '0')}/${String(yesterday.getDate()).padStart(2, '0')}/${yesterday.getFullYear()}`;
+            
+            const yResponse = await fetch(
+                `https://marsapi.ams.usda.gov/services/v1.2/reports/${reportId}?q=report_date=${ydateStr}&allSections=true`,
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+                    },
+                    signal: AbortSignal.timeout(15000),
+                }
             );
 
-            if (pubResponse.ok) {
-                const pubData = await pubResponse.json() as any;
-                const reports = pubData?.reports || [];
-
-                // Extract grain-related reports for freshness info
-                const grainReports = reports.filter((r: any) => {
-                    const title = (r.reportTitle || '').toLowerCase();
-                    return title.includes('grain') || title.includes('corn') || title.includes('soybean');
-                });
-
-                if (grainReports.length > 0) {
-                    logger.info('USDA grain reports from public v3.1 API', {
-                        count: grainReports.length,
-                    });
-
-                    return res.json({
-                        success: true,
-                        degraded: true,
-                        source: 'usda-ams-public',
-                        data: {
-                            results: grainReports.map((r: any) => ({
-                                reportTitle: r.reportTitle,
-                                publishedDate: r.publishedDate,
-                                reportBeginDate: r.reportBeginDate,
-                                reportEndDate: r.reportEndDate,
-                                id: r.id,
-                            })),
-                            reportCount: grainReports.length,
-                            latestReport: grainReports[0]?.publishedDate,
-                        },
-                        fetchedAt: new Date().toISOString(),
-                    });
-                }
+            if (!yResponse.ok) {
+                throw new Error(`USDA API returned ${yResponse.status} for ${reportId}`);
             }
-        } catch (err) {
-            logger.warn('USDA v3.1 public API error', errorMeta(err));
+
+            const yData = await yResponse.json();
+            return res.json(parseGrainBidResponse(yData, commodity, state));
         }
 
-        // Strategy 3: Hardcoded fallback
-        logger.warn('All USDA sources failed, using fallback data');
-        res.json(buildFallbackResponse());
+        const data = await response.json();
+        res.json(parseGrainBidResponse(data, commodity, state));
     } catch (error) {
         logger.error('USDA API proxy error', errorMeta(error));
         res.json(buildFallbackResponse());
+    }
+});
+
+// ── Sunflower report endpoint ──────────────────────────────────────────
+usdaRouter.get('/sunflower-report', async (_req, res) => {
+    try {
+        const apiKey = (env as any).USDA_API_KEY;
+        if (!apiKey) {
+            return res.json({ success: false, degraded: true, source: 'fallback', data: {} });
+        }
+
+        const today = new Date();
+        const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+
+        const response = await fetch(
+            `https://marsapi.ams.usda.gov/services/v1.2/reports/${SUNFLOWER_REPORT_ID}?q=report_date=${dateStr}&allSections=true`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Basic ${Buffer.from(apiKey + ':').toString('base64')}`,
+                },
+                signal: AbortSignal.timeout(15000),
+            }
+        );
+
+        if (response.ok) {
+            const data = await response.json();
+            const results = Array.isArray(data) ? data : (data as any)?.results || [];
+            const sunflowerBids = results.filter((r: any) =>
+                r.commodity?.toLowerCase().includes('sunflower')
+            );
+
+            return res.json({
+                success: true,
+                degraded: false,
+                source: 'usda-ams',
+                data: {
+                    bids: sunflowerBids.map((r: any) => ({
+                        commodity: r.commodity,
+                        class: r.class,
+                        tradeLoc: r.trade_loc,
+                        basisMin: r['basis Min'],
+                        basisMax: r['basis Max'],
+                        priceMin: r['price Min'],
+                        priceMax: r['price Max'],
+                        avgPrice: r.avg_price,
+                        direction: r['basis Min Direction'],
+                        reportDate: r.report_date,
+                    })),
+                },
+                fetchedAt: new Date().toISOString(),
+            });
+        }
+
+        res.json({ success: false, degraded: true, source: 'fallback', data: {} });
+    } catch (error) {
+        logger.error('Sunflower report error', errorMeta(error));
+        res.json({ success: false, degraded: true, source: 'fallback', data: {} });
     }
 });
 
@@ -112,7 +166,6 @@ usdaRouter.get('/futures-price', async (_req, res) => {
     try {
         logger.info('Fetching current futures price');
 
-        // Try USDA Grain Transportation Report
         const response = await fetch(
             'https://api.transportation.usda.gov/wips/services/GTR/GrainPrices?format=json',
             { signal: AbortSignal.timeout(5000) }
@@ -157,6 +210,94 @@ usdaRouter.get('/futures-price', async (_req, res) => {
         });
     }
 });
+
+// ── Parse MARS v1.2 grain bid response ────────────────────────────────
+function parseGrainBidResponse(data: any, commodity: string, state: string) {
+    const results = Array.isArray(data) ? data : data?.results || [];
+    
+    // Map commodity name to a match filter
+    const commodityFilter = commodity.toLowerCase().replace('yellow ', '');
+
+    // Filter to matching commodity
+    const bids = results.filter((r: any) => {
+        const rc = (r.commodity || '').toLowerCase();
+        const rClass = (r.class || '').toLowerCase();
+        // Match "Corn" for Yellow Corn, "Soybeans" for Soybeans, etc.
+        return rc.includes(commodityFilter) || rClass.includes(commodityFilter);
+    });
+
+    if (bids.length === 0) {
+        logger.warn('No USDA bids matched commodity filter', { commodity, state, totalRecords: results.length });
+        return buildFallbackResponse();
+    }
+
+    // Extract structured bid data
+    const parsedBids = bids.map((r: any) => ({
+        commodity: r.commodity,
+        class: r.class,
+        grade: r.grade,
+        tradeLoc: r.trade_loc,
+        state: r.market_location_state || state,
+        basisMin: r['basis Min'],
+        basisMax: r['basis Max'],
+        basisFuturesMonth: r['basis Min Futures Month'],
+        basisDirection: r['basis Min Direction'],
+        basisChange: r['basis Min Change'],
+        priceMin: r['price Min'],
+        priceMax: r['price Max'],
+        avgPrice: r.avg_price,
+        avgPriceYearAgo: r.avg_price_year_ago,
+        priceDirection: r['price Min Direction'],
+        priceChange: r['price Min Change'],
+        deliveryPoint: r.delivery_point,
+        freight: r.freight,
+        transMode: r.trans_mode,
+        reportDate: r.report_date,
+    }));
+
+    // Calculate average basis across all ND sub-regions
+    const avgBasis = parsedBids.reduce((sum: number, b: any) => {
+        const basis = (b.basisMin + b.basisMax) / 2;
+        return sum + basis;
+    }, 0) / parsedBids.length;
+
+    // Determine overall trend
+    const directions = parsedBids.map((b: any) => b.basisDirection);
+    const trend = directions.filter((d: string) => d === 'UP').length > directions.length / 2
+        ? 'UP'
+        : directions.filter((d: string) => d === 'DOWN').length > directions.length / 2
+            ? 'DOWN'
+            : 'FLAT';
+
+    return {
+        success: true,
+        degraded: false,
+        source: 'usda-ams',
+        data: {
+            summary: {
+                commodity,
+                state,
+                avgBasis: avgBasis, // in cents
+                avgBasisDollars: avgBasis / 100, // in dollars
+                trend,
+                avgPrice: parsedBids.reduce((s: number, b: any) => s + (b.avgPrice || 0), 0) / parsedBids.length,
+                avgPriceYearAgo: parsedBids.reduce((s: number, b: any) => s + (b.avgPriceYearAgo || 0), 0) / parsedBids.length,
+                futuresMonth: parsedBids[0]?.basisFuturesMonth || 'May (K)',
+                bidCount: parsedBids.length,
+                reportDate: parsedBids[0]?.reportDate,
+            },
+            bids: parsedBids,
+            // Regional adjustments format for frontend compatibility
+            results: parsedBids.map((b: any) => ({
+                region: b.tradeLoc,
+                state: b.state,
+                basis: (b.basisMin + b.basisMax) / 2,
+                trend: b.basisDirection === 'UP' ? 'UP' : b.basisDirection === 'DOWN' ? 'DOWN' : 'FLAT',
+            })),
+        },
+        fetchedAt: new Date().toISOString(),
+    };
+}
 
 function buildFallbackResponse() {
     return {
