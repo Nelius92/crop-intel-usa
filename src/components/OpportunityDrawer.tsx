@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown, User, Clock, Sparkles, Loader2 } from 'lucide-react';
 import { HeatmapPoint, Buyer, Transloader, isDataStale, CropType } from '../types';
@@ -21,6 +21,14 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
     const [showIntel, setShowIntel] = useState(false);
     const [intelExplanation, setIntelExplanation] = useState<string | null>(null);
     const [loadingExplanation, setLoadingExplanation] = useState(false);
+
+    // Reset intel state when switching between buyers
+    useEffect(() => {
+        setShowIntel(false);
+        setIntelExplanation(null);
+        setLoadingExplanation(false);
+        setShowExplain(false);
+    }, [item]);
 
     if (!item) return null;
 

@@ -2,7 +2,7 @@
 // Calibrated with LIVE BNSF API data (Tariff 4022 Item 31750, March 2026)
 // Verified 735 rates from POST /v1/carload-rates on api.bnsf.com:6443
 //
-// ORIGIN: Campbell, MN (BNSF served, Wahpeton subdivision)
+// ORIGIN: Campbell, MN (BNSF served, Wahpeton subdivision) 
 // All rates FROM Campbell, MN TO destination
 //
 // Rate-per-bushel is CROP-AWARE: corn=4000 bu/car, soybeans=3667,
