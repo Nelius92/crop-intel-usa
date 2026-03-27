@@ -6,6 +6,7 @@ import { BNSFOpportunity } from '../services/bnsfScraperService';
 import { SourceLabel, formatTimeAgo } from './TrustBadge';
 import { getCorridorName } from '../services/railConfidenceService';
 import { marketDataService } from '../services/marketDataService';
+import { getCropPriceUnit } from '../services/bnsfService';
 import { calculateBuyerIntelScore, fetchBuyerExplanation } from '../services/buyerIntelService';
 
 interface OpportunityDrawerProps {
@@ -14,7 +15,7 @@ interface OpportunityDrawerProps {
 }
 
 export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onClose }) => {
-    const isBuyer = (item: any): item is Buyer => 'type' in item && ['elevator', 'processor', 'feedlot', 'shuttle', 'export', 'river', 'ethanol'].includes(item.type);
+    const isBuyer = (item: any): item is Buyer => 'type' in item && ['elevator', 'processor', 'feedlot', 'shuttle', 'export', 'river', 'ethanol', 'crush'].includes(item.type);
     const isTransloader = (item: any): item is Transloader => 'type' in item && item.type === 'transload';
     const isBnsfOpportunity = (item: any): item is BNSFOpportunity => item && 'livePriceBase' in item;
     const [showExplain, setShowExplain] = useState(false);
@@ -71,15 +72,18 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                 </h3>
                                 <div className="grid grid-cols-2 gap-2 sm:gap-3">
                                     {isBuyer(item) ? (
-                                        <>
-                                            <DataCard label="Net Price" value={`$${item.netPrice?.toFixed(2) || '-'}`} color="text-red-400" highlight />
-                                            <DataCard label="Cash Bid" value={item.cashPrice !== undefined ? `$${item.cashPrice.toFixed(2)}` : 'CALL'} />
-                                            {item.basis !== undefined ? (
-                                                <DataCard label="Basis" value={`${item.basis > 0 ? '+' : ''}${item.basis.toFixed(2)}`} color={item.basis >= 0 ? 'text-green-400' : 'text-red-400'} />
-                                            ) : (
-                                                <DataCard label="Basis" value="NO BID" />
-                                            )}
-                                            <DataCard label={`Freight (${item.freightMode === 'rail' ? '🚂 Rail' : '🚛 Truck'})`} value={`-$${Math.abs(item.freightCost ?? 0).toFixed(2)}`} color="text-red-400" />
+                                        (() => {
+                                            const unit = getCropPriceUnit(item.cropType);
+                                            return (
+                                                <>
+                                                    <DataCard label={`Net Price (${unit})`} value={`$${item.netPrice?.toFixed(2) || '-'}`} color="text-red-400" highlight />
+                                                    <DataCard label={`Cash Bid (${unit})`} value={item.cashPrice !== undefined ? `$${item.cashPrice.toFixed(2)}` : 'CALL'} />
+                                                    {item.basis !== undefined ? (
+                                                        <DataCard label={`Basis (${unit})`} value={`${item.basis > 0 ? '+' : ''}${item.basis.toFixed(2)}`} color={item.basis >= 0 ? 'text-green-400' : 'text-red-400'} />
+                                                    ) : (
+                                                        <DataCard label="Basis" value="NO BID" />
+                                                    )}
+                                                    <DataCard label={`Freight (${item.freightMode === 'rail' ? '🚂 Rail' : '🚛 Truck'}) ${unit}`} value={`-$${Math.abs(item.freightCost ?? 0).toFixed(2)}`} color="text-red-400" />
                                             {(() => {
                                                 const level = item.railServedConfidence || (item.railAccessible ? 'likely' : 'unverified');
                                                 const railLabel = level === 'confirmed' ? 'BNSF Confirmed'
@@ -104,7 +108,9 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                             ) : (
                                                 <DataCard label="Region" value={item.region} />
                                             )}
-                                        </>
+                                                </>
+                                            );
+                                        })()
                                     ) : isTransloader(item) ? (
                                         <>
                                             <DataCard label="Railroad" value={item.railroad?.join(', ') || 'N/A'} icon={<Train size={14} />} highlight />
@@ -476,10 +482,10 @@ const CalculationBreakdown: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
                         </span>
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans mt-1">
-                        {benchmarkName} Net = Cash − ${benchmark.freight.toFixed(2)} freight = ${benchmarkNet.toFixed(2)}
+                        {benchmarkName} Net = Cash − ${benchmark.freight.toFixed(2)} farmer delivery = ${benchmarkNet.toFixed(2)}{getCropPriceUnit(buyer.cropType)}
                     </div>
                     <div className="text-[10px] text-zinc-600 font-sans">
-                        Delta = ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value).toFixed(2)} − ${benchmarkNet.toFixed(2)} = {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - benchmarkNet).toFixed(2)}
+                        Delta = ${(p.futures.value + p.basis.value - p.freight.value - p.fees.value).toFixed(2)} − ${benchmarkNet.toFixed(2)} = {((p.futures.value + p.basis.value - p.freight.value - p.fees.value) - benchmarkNet).toFixed(2)}{getCropPriceUnit(buyer.cropType)}
                     </div>
                 </div>
             )}

@@ -41,20 +41,68 @@ export const CAMPBELL_MN = {
 // Constants
 const FUEL_SURCHARGE_AVG = 250; // Estimated average FSC per car
 
-// Crop-specific bushels per car (weight-limited hopper car ~220,000 lbs capacity)
-// IMPORTANT: These MUST stay separate — each crop has different lbs/bu,
-// so the same rail car carries vastly different bushel counts.
+// Crop-specific bushels per car (BNSF 5161 cu ft covered hopper)
+// Net weight capacity: 223,400 lbs (286k GRL - 62,600 tare)
+// Volume capacity: ~4,148 bushels (5161 cu ft)
+//
+// BINDING CONSTRAINT varies by crop:
+//   Heavy crops (corn, soybeans, wheat) → WEIGH OUT at 223,400 lbs
+//   Light crops (sunflowers, barley)    → CUBE OUT at ~4,148 bu
 const CROP_BUSHELS_PER_CAR: Record<string, number> = {
-    'Yellow Corn': 4000,    // 56 lbs/bu → ~3928 bu, round to 4000
+    'Yellow Corn': 4000,    // 56 lbs/bu → 223,400/56 = 3,989 bu, round to 4,000
     'White Corn': 4000,
-    'Soybeans': 3667,       // 60 lbs/bu → ~3667 bu
-    'Wheat': 3667,          // 60 lbs/bu → ~3667 bu
-    'Sunflowers': 8800,     // 25 lbs/bu → ~8800 bu (volume-limited, not weight)
+    'Soybeans': 3723,       // 60 lbs/bu → 223,400/60 = 3,723 bu (weigh-out)
+    'Wheat': 3723,          // 60 lbs/bu → 223,400/60 = 3,723 bu (weigh-out)
+    'Sunflowers': 4148,     // 25 lbs/bu → cube-out at ~4,148 bu (volume-limited)
+                            // Note: weight limit = 223,400/25 = 8,936 bu but car
+                            // fills up (5161 cu ft) well before hitting weight.
+};
+
+// Crop price units — most crops trade $/bu, sunflowers trade $/cwt
+const CROP_PRICE_UNIT: Record<string, string> = {
+    'Yellow Corn': '/bu',
+    'White Corn': '/bu',
+    'Soybeans': '/bu',
+    'Wheat': '/bu',
+    'Sunflowers': '/cwt',
+};
+
+// Crop test weight (lbs per bushel) — needed for unit conversions
+const CROP_LBS_PER_BUSHEL: Record<string, number> = {
+    'Yellow Corn': 56,
+    'White Corn': 56,
+    'Soybeans': 60,
+    'Wheat': 60,
+    'Sunflowers': 25,
 };
 
 /** Get bushels per car for a crop (defaults to corn) */
 export function getCropBushelsPerCar(crop: string = 'Yellow Corn'): number {
     return CROP_BUSHELS_PER_CAR[crop] || 4000;
+}
+
+/** Get the price unit label for a crop (e.g., '/bu' or '/cwt') */
+export function getCropPriceUnit(crop: string = 'Yellow Corn'): string {
+    return CROP_PRICE_UNIT[crop] || '/bu';
+}
+
+/** Get lbs per bushel for a crop */
+export function getCropLbsPerBushel(crop: string = 'Yellow Corn'): number {
+    return CROP_LBS_PER_BUSHEL[crop] || 56;
+}
+
+/**
+ * Convert a freight rate from $/bu to the crop's native price unit.
+ * For most crops this is a no-op (already $/bu).
+ * For sunflowers: $/bu × (100 lbs/cwt ÷ 25 lbs/bu) = $/bu × 4 = $/cwt
+ */
+export function convertFreightToCropUnit(freightPerBushel: number, crop: string = 'Yellow Corn'): number {
+    if (CROP_PRICE_UNIT[crop] === '/cwt') {
+        const lbsPerBu = CROP_LBS_PER_BUSHEL[crop] || 56;
+        const bushelsPerCwt = 100 / lbsPerBu;
+        return freightPerBushel * bushelsPerCwt;
+    }
+    return freightPerBushel; // Already in $/bu
 }
 
 // Base Rate Anchor: Campbell, MN to Hereford, TX (approx $4400/car)

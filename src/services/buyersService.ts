@@ -7,6 +7,7 @@ import { FALLBACK_BUYERS_DATA } from './fallbackData';
 import { marketDataService } from './marketDataService';
 import { usdaMarketService } from './usdaMarketService';
 import { calculateFreight } from './railService';
+import { convertFreightToCropUnit, getCropPriceUnit } from './bnsfService';
 import { enrichBuyersWithRailConfidence } from './railConfidenceService';
 import { TRANSLOADERS } from './transloaderService';
 import { cacheService, CACHE_TTL } from './cacheService';
@@ -203,9 +204,13 @@ export const fetchRealBuyersFromGoogle = async (
             buyer.railAccessible,
             selectedCrop
         );
-        const newFreightCost = freightInfo.ratePerBushel;
+        // BNSF rate engine returns freight in $/bu for all crops.
+        // For sunflowers (priced in $/cwt), convert freight to $/cwt
+        // so that Net = Cash($/cwt) - Freight($/cwt) is unit-consistent.
+        const rawFreightPerBushel = freightInfo.ratePerBushel;
+        const newFreightCost = convertFreightToCropUnit(rawFreightPerBushel, selectedCrop);
 
-        // Net Price = Cash Price - Freight
+        // Net Price = Cash Price - Freight (both in same unit now)
         const newNetPrice = newCashPrice - newFreightCost;
 
         // Benchmark comparison (crop-specific):
@@ -225,13 +230,15 @@ export const fetchRealBuyersFromGoogle = async (
             staleAfterMinutes: hasRealBid ? 60 : 120
         };
 
+        const priceUnit = getCropPriceUnit(selectedCrop);
+
         const provenance = {
             futures: futuresSource,
             basis: basisSource,
             freight: {
                 value: newFreightCost,
                 confidence: 'estimated' as const,
-                source: `BNSF Tariff 4022 (${freightInfo.mode})`,
+                source: `BNSF Tariff 4022 (${freightInfo.mode}) ${priceUnit}`,
                 timestamp: now,
                 staleAfterMinutes: 720
             },

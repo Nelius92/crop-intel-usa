@@ -10,6 +10,7 @@ import {
 import { marketDataService } from '../services/marketDataService';
 import { Buyer, CropType } from '../types';
 import { RefreshCw, AlertTriangle, Clock } from 'lucide-react';
+import { getCropPriceUnit } from '../services/bnsfService';
 
 interface BuyersPageProps {
     selectedCrop: CropType;
@@ -108,7 +109,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                                 <>
                                     <span className="hidden sm:inline text-zinc-600">•</span>
                                     <span className="text-red-400 font-mono text-xs sm:text-sm">
-                                        {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}
+                                        {oracle.contractMonth} @ ${oracle.futuresPrice.toFixed(2)}{getCropPriceUnit(selectedCrop)}
                                     </span>
                                 </>
                             )}
@@ -187,7 +188,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                     {loading && buyers.length === 0 ? (
                         <div className="w-full h-[200px] bg-[#1a1c23] rounded-xl animate-pulse" />
                     ) : buyers.length > 0 ? (
-                        <LiveQuoteBoard buyers={buyers.slice(0, 10)} onSelect={handleSelectBuyer} />
+                        <LiveQuoteBoard buyers={buyers.slice(0, 10)} onSelect={handleSelectBuyer} selectedCrop={selectedCrop} />
                     ) : null}
                 </div>
 

@@ -1,14 +1,17 @@
 import React from 'react';
-import { Buyer } from '../types';
+import { Buyer, CropType } from '../types';
 import { ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { getCropPriceUnit } from '../services/bnsfService';
 
 interface LiveQuoteBoardProps {
     buyers: Buyer[];
     onSelect: (buyer: Buyer) => void;
+    selectedCrop?: CropType;
 }
 
-export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect }) => {
+export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect, selectedCrop = 'Yellow Corn' }) => {
     const [isMinimized, setIsMinimized] = React.useState(false);
+    const priceUnit = getCropPriceUnit(selectedCrop);
 
     // Get top 3 buyers by basis
     const topBuyers = [...buyers]
@@ -65,7 +68,7 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
                         <div className="grid grid-cols-2 gap-2 mt-2">
                             {/* Bid (Basis) */}
                             <div className="bg-black/30 rounded p-2 border border-white/5">
-                                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Basis (Bid)</div>
+                                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Basis ({priceUnit})</div>
                                 {buyer.basis != null ? (
                                     <div className={`text-xl font-mono font-bold flex items-center ${buyer.basis >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                         {buyer.basis > 0 ? '+' : ''}{buyer.basis.toFixed(2)}
@@ -78,7 +81,7 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
 
                             {/* Ask (Cash) - Conceptual mapping for visual balance */}
                             <div className="bg-black/30 rounded p-2 border border-white/5">
-                                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cash (Spot)</div>
+                                <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Cash ({priceUnit})</div>
                                 <div className="text-xl font-mono font-bold text-white flex items-center">
                                     {buyer.cashPrice?.toFixed(2)}
                                 </div>
@@ -87,7 +90,7 @@ export const LiveQuoteBoard: React.FC<LiveQuoteBoardProps> = ({ buyers, onSelect
 
                         {/* Spread / Net */}
                         <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
-                            <div className="text-[10px] text-slate-500">Net: <span className="text-slate-300 font-mono">${buyer.netPrice?.toFixed(2) || '-'}</span></div>
+                            <div className="text-[10px] text-slate-500">Net: <span className="text-slate-300 font-mono">${buyer.netPrice?.toFixed(2) || '-'}{priceUnit}</span></div>
                             <div className="text-[10px] text-corn-accent font-medium tracking-wide">TRADE NOW</div>
                         </div>
                     </div>

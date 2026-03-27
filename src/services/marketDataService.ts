@@ -29,6 +29,11 @@ export interface MarketData {
 //   ADM Enderlin:  $23.30/cwt cash, $22.80 AOG
 //   Cargill WF:    $23.20/cwt cash, $22.70 AOG
 //   Colorado Mills: $22.20/cwt AOG
+//
+// BENCHMARK FREIGHT: Farmer self-delivery cost ($0.25/bu) to each
+// benchmark location. This is what a farmer would spend hauling grain
+// from their farm to Hankinson/Enderlin/AGP Dawson. Including this
+// in the benchmark net shows the true savings of using Campbell rail.
 
 interface CropDefaults {
     price: number;
@@ -45,7 +50,7 @@ const MARKET_DEFAULTS: Record<string, CropDefaults> = {
         contract: "ZCH6 (Mar '26)",
         benchmarkBasis: -0.54,       // Hankinson actual ~Feb 27, 2026 → ~$3.81 cash
         benchmarkName: 'Hankinson',
-        benchmarkFreight: 0.30,      // Fixed $0.30/bu truck from Campbell
+        benchmarkFreight: 0.25,      // Farmer self-delivery cost to Hankinson (~$0.25/bu)
         priceUnit: '$/bu'
     },
     'White Corn': {
@@ -61,7 +66,7 @@ const MARKET_DEFAULTS: Record<string, CropDefaults> = {
         contract: "ZSH6 (Mar '26)",
         benchmarkBasis: -0.55,           // AGP Dawson est. basis (nearest crush ~30mi)
         benchmarkName: 'AGP Dawson',
-        benchmarkFreight: 0.15,          // ~30 miles truck from Campbell
+        benchmarkFreight: 0.25,          // Farmer self-delivery cost to AGP Dawson (~$0.25/bu)
         priceUnit: '$/bu'
     },
     'Wheat': {
@@ -69,7 +74,7 @@ const MARKET_DEFAULTS: Record<string, CropDefaults> = {
         contract: "ZWH6 (Mar '26)",
         benchmarkBasis: -0.45,           // SD Wheat Growers Aberdeen est. basis (~70mi)
         benchmarkName: 'SD Wheat Growers Aberdeen',
-        benchmarkFreight: 0.25,          // ~70 miles truck from Campbell
+        benchmarkFreight: 0.25,          // Farmer self-delivery cost (~$0.25/bu)
         priceUnit: '$/bu'
     },
     'Sunflowers': {
@@ -77,7 +82,7 @@ const MARKET_DEFAULTS: Record<string, CropDefaults> = {
         contract: 'Spot Cash (High-Oleic)',
         benchmarkBasis: 0,           // Enderlin IS the benchmark — basis is zero
         benchmarkName: 'Enderlin ADM',
-        benchmarkFreight: 0,         // Farmers drive to Enderlin directly — no freight
+        benchmarkFreight: 1.00,      // Farmer self-delivery $0.25/bu × 4 bu/cwt = $1.00/cwt
         priceUnit: '$/cwt'
     }
 };

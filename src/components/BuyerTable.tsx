@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Buyer, CropType, RailConfidenceLevel } from '../types';
 import { Train, Filter, X, ShieldCheck, Search, Sparkles, AlertTriangle, CircleDot } from 'lucide-react';
 import { calculateBuyerIntelScore } from '../services/buyerIntelService';
+import { getCropPriceUnit } from '../services/bnsfService';
 
 const RAIL_BADGE: Record<RailConfidenceLevel, { label: string; color: string }> = {
     confirmed: { label: 'BNSF ✓', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
@@ -117,6 +118,9 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
         }
         return result;
     }, [buyers, filterType, filterState, bnsfOnly, searchQuery]);
+
+    // Derive price unit label from crop
+    const priceUnit = getCropPriceUnit(selectedCrop);
 
     // Calculate intel scores for all filtered buyers
     const scoredBuyers = useMemo(() => {
@@ -259,9 +263,9 @@ export const BuyerTable: React.FC<BuyerTableProps> = ({ buyers, onSelect, allBuy
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Type</div>
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Location</div>
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Basis</div>
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Cash Price</div>
-                        <div className="text-xs font-bold text-red-500/80 uppercase tracking-widest text-right">Freight</div>
-                        <div className="text-xs font-bold text-red-400 uppercase tracking-widest text-right">Net Price</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Cash {priceUnit}</div>
+                        <div className="text-xs font-bold text-red-500/80 uppercase tracking-widest text-right">Freight {priceUnit}</div>
+                        <div className="text-xs font-bold text-red-400 uppercase tracking-widest text-right">Net {priceUnit}</div>
                         <div className="text-xs font-bold text-red-500/80 uppercase tracking-widest text-right">vs Benchmark</div>
                         <div className="text-xs font-bold text-orange-400/80 uppercase tracking-widest text-center">Rail Access</div>
                     </div>
