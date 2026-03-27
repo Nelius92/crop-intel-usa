@@ -63,7 +63,17 @@ interface MorningScanResult {
 const SCAN_ZIP_CODES = ['56009', '58102', '57104', '55401', '68102', '66101', '79101', '30301', '70112', '97201'];
 
 const FIRECRAWL_TARGETS = [
-    { name: 'Al-Corn Clean Fuel', url: 'https://al-corn.com/cash-bids/', crop: 'Yellow Corn', type: 'ethanol' },
+    // ── CIH-Powered Sites (same widget as Al-Corn) ──
+    { name: 'Al-Corn Clean Fuel', url: 'https://al-corn.com/cash-bids/', crop: 'Yellow Corn', type: 'ethanol', city: 'Claremont', state: 'MN' },
+    { name: 'DENCO II', url: 'https://dencollc.com/', crop: 'Yellow Corn', type: 'ethanol', city: 'Morris', state: 'MN' },
+    { name: 'Siouxland Ethanol', url: 'https://www.siouxlandethanol.com/', crop: 'Yellow Corn', type: 'ethanol', city: 'Jackson', state: 'NE' },
+    { name: 'Highwater Ethanol', url: 'https://www.highwaterethanol.com/', crop: 'Yellow Corn', type: 'ethanol', city: 'Lamberton', state: 'MN' },
+    { name: 'Fox River Valley Ethanol', url: 'https://frvethanol.com/', crop: 'Yellow Corn', type: 'ethanol', city: 'Oshkosh', state: 'WI' },
+    { name: 'Husker Ag', url: 'https://huskerag.com/', crop: 'Yellow Corn', type: 'ethanol', city: 'Plainview', state: 'NE' },
+    // ── POET Plants (largest US ethanol chain, 33 plants) ──
+    { name: 'POET Bioprocessing', url: 'https://poet.com/locations', crop: 'Yellow Corn', type: 'ethanol', city: 'Various', state: 'Multi' },
+    // ── CHS (major elevator/processor network) ──
+    { name: 'CHS River Terminals', url: 'https://www.chsag.com/cash-bids/', crop: 'Yellow Corn', type: 'elevator', city: 'Various', state: 'MN' },
 ];
 
 const BARCHART_CROP_NAMES: Record<string, string> = {
@@ -134,7 +144,7 @@ async function fetchBarchartBids(zipCodes: string[], crops: string[]): Promise<S
 }
 
 // ── Tier 2: Firecrawl /interact ──────────────────────────────────
-async function scrapeWithFirecrawl(target: { name: string; url: string; crop: string }): Promise<ScrapedBid[]> {
+async function scrapeWithFirecrawl(target: { name: string; url: string; crop: string; city?: string; state?: string }): Promise<ScrapedBid[]> {
     if (!FIRECRAWL_API_KEY) {
         console.log('  ⚠️  No FIRECRAWL_API_KEY — skipping Tier 2');
         return [];
@@ -299,7 +309,7 @@ async function scrapeWithFirecrawl(target: { name: string; url: string; crop: st
                     const val = validateBid(cashBid, futures, basis);
                     bids.push({
                         buyerName: target.name,
-                        city: 'Claremont', state: 'MN',
+                        city: target.city || '', state: target.state || '',
                         crop: target.crop,
                         deliveryPeriod: row.delivery || 'Spot',
                         contractMonth: row.contractMonth || '',

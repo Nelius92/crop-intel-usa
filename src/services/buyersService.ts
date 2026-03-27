@@ -13,6 +13,140 @@ import { TRANSLOADERS } from './transloaderService';
 import { cacheService, CACHE_TTL } from './cacheService';
 import { apiGetJson } from './apiClient';
 
+// ── Live Bid Ingestion ──────────────────────────────────────────
+// Loads scraped bids from morning scan (live_bids.json)
+// and merges them into the buyer pipeline
+
+interface ScrapedBidRecord {
+    buyerName: string;
+    city: string;
+    state: string;
+    crop: string;
+    deliveryPeriod: string;
+    contractMonth: string;
+    futuresPrice: number;
+    basis: number;
+    cashBid: number;
+    change?: number;
+    scrapedAt: string;
+    source: string;
+    sourceUrl?: string;
+    priceUnit: string;
+    validated: boolean;
+}
+
+interface LiveBidsData {
+    scanTime: string;
+    totalBids: number;
+    bids: ScrapedBidRecord[];
+}
+
+// Cache the live bids in memory (refreshed when stale)
+let _liveBidsCache: LiveBidsData | null = null;
+let _liveBidsCacheTime = 0;
+const LIVE_BIDS_CACHE_TTL = 30 * 60 * 1000; // 30 min (scan runs once/day)
+
+async function loadLiveBids(): Promise<LiveBidsData | null> {
+    const now = Date.now();
+    if (_liveBidsCache && (now - _liveBidsCacheTime) < LIVE_BIDS_CACHE_TTL) {
+        return _liveBidsCache;
+    }
+
+    try {
+        // In Vite, we use dynamic import for JSON
+        const module = await import('../data/live_bids.json');
+        const data = module.default as LiveBidsData;
+
+        // Check staleness — bids older than 36 hours are stale
+        const scanAge = now - new Date(data.scanTime).getTime();
+        if (scanAge > 36 * 60 * 60 * 1000) {
+            console.warn('[LiveBids] Data is stale (>36h old), will use as fallback only');
+        }
+
+        _liveBidsCache = data;
+        _liveBidsCacheTime = now;
+        console.log(`[LiveBids] Loaded ${data.totalBids} scraped bids from ${data.scanTime}`);
+        return data;
+    } catch {
+        // live_bids.json doesn't exist yet or failed to load — not an error
+        return null;
+    }
+}
+
+/**
+ * Get the best scraped bid for a specific buyer+crop combo.
+ * Returns the nearest-delivery "Spot" bid (most relevant for current prices).
+ */
+function getBestScrapedBid(
+    liveBids: LiveBidsData,
+    buyerName: string,
+    crop: string
+): ScrapedBidRecord | null {
+    // Normalize names for fuzzy matching
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedBuyer = normalize(buyerName);
+
+    const matches = liveBids.bids.filter(bid => {
+        if (bid.crop !== crop) return false;
+        if (!bid.validated) return false;
+        // Exact or fuzzy match on buyer name
+        const normalizedBid = normalize(bid.buyerName);
+        return normalizedBid === normalizedBuyer
+            || normalizedBuyer.includes(normalizedBid)
+            || normalizedBid.includes(normalizedBuyer);
+    });
+
+    if (matches.length === 0) return null;
+
+    // Return nearest delivery period (first chronologically)
+    return matches.sort((a, b) => {
+        // Prefer "Spot" or nearest month
+        if (a.deliveryPeriod.toLowerCase().includes('spot')) return -1;
+        if (b.deliveryPeriod.toLowerCase().includes('spot')) return 1;
+        return a.deliveryPeriod.localeCompare(b.deliveryPeriod);
+    })[0];
+}
+
+/**
+ * Get scraped buyers that DON'T exist in the directory yet.
+ * These are new buyer discoveries from the morning scan.
+ */
+function getNewScrapedBuyers(
+    liveBids: LiveBidsData,
+    existingNames: Set<string>,
+    crop: string
+): ApiBuyerDirectoryRecord[] {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedExisting = new Set([...existingNames].map(normalize));
+
+    // Group bids by buyer, take the best (nearest delivery) per buyer
+    const buyerMap = new Map<string, ScrapedBidRecord>();
+    for (const bid of liveBids.bids) {
+        if (bid.crop !== crop || !bid.validated) continue;
+        const key = normalize(bid.buyerName);
+        if (normalizedExisting.has(key)) continue; // already in directory
+        if (!buyerMap.has(key) || bid.deliveryPeriod < (buyerMap.get(key)!.deliveryPeriod)) {
+            buyerMap.set(key, bid);
+        }
+    }
+
+    return [...buyerMap.values()].map(bid => ({
+        id: `scraped-${normalize(bid.buyerName)}-${Date.now()}`,
+        name: bid.buyerName,
+        type: 'ethanol' as BuyerType,
+        city: bid.city,
+        state: bid.state,
+        region: `${bid.state} Region`,
+        lat: 0, lng: 0, // Will be geocoded later
+        cropType: bid.crop as CropType,
+        cashBid: bid.cashBid,
+        postedBasis: bid.basis,
+        bidDate: bid.scrapedAt,
+        bidSource: `${bid.source} (${bid.sourceUrl || 'scraped'})`,
+        verifiedStatus: 'verified' as const,
+    }));
+}
+
 // ── Filter Interface ──
 export interface BuyerFilters {
     crop?: CropType;
@@ -142,6 +276,64 @@ export const fetchRealBuyersFromGoogle = async (
     filteredBuyers = filteredBuyers.filter(b =>
         (b.cropType || 'Yellow Corn') === selectedCrop
     );
+
+    // ── Enrich with Live Scraped Bids ────────────────────────────
+    // Merge morning scan results into the buyer pipeline
+    const liveBids = await loadLiveBids();
+    if (liveBids && liveBids.bids.length > 0) {
+        let enrichedCount = 0;
+
+        // Step 1: Enrich existing buyers with scraped prices
+        for (const buyer of filteredBuyers) {
+            // Skip buyers that already have a real bid from the backend
+            const buyerAny = buyer as any;
+            if (buyerAny.cashBid != null) continue;
+
+            const scrapedBid = getBestScrapedBid(liveBids, buyer.name, selectedCrop);
+            if (scrapedBid) {
+                buyerAny.cashBid = scrapedBid.cashBid;
+                buyerAny.postedBasis = scrapedBid.basis;
+                buyerAny.bidDate = scrapedBid.scrapedAt;
+                buyerAny.bidSource = `${scrapedBid.source} (${scrapedBid.sourceUrl || 'scraped'})`;
+                enrichedCount++;
+            }
+        }
+
+        // Step 2: Add new buyers discovered by the scraper
+        const existingNames = new Set(filteredBuyers.map(b => b.name));
+        const newScrapedBuyers = getNewScrapedBuyers(liveBids, existingNames, selectedCrop);
+
+        for (const rec of newScrapedBuyers) {
+            filteredBuyers.push({
+                id: rec.id,
+                name: rec.name,
+                type: rec.type,
+                city: rec.city,
+                state: rec.state,
+                lat: rec.lat ?? 0,
+                lng: rec.lng ?? 0,
+                region: rec.region,
+                cropType: (rec.cropType as CropType) ?? (selectedCrop as CropType),
+                organic: false,
+                contactName: 'Grain Desk',
+                verified: true,
+                railConfidence: undefined,
+                dataSource: 'morning-scan',
+                cashBid: rec.cashBid,
+                postedBasis: rec.postedBasis,
+                bidDate: rec.bidDate,
+                bidSource: rec.bidSource,
+                basis: 0,
+                cashPrice: 0,
+                railAccessible: false,
+                nearTransload: false,
+            } as Buyer);
+        }
+
+        if (enrichedCount > 0 || newScrapedBuyers.length > 0) {
+            console.log(`[LiveBids] Enriched ${enrichedCount} existing buyers, added ${newScrapedBuyers.length} new scraped buyers for ${selectedCrop}`);
+        }
+    }
 
     // Fetch live market data for the SPECIFIC CROP
     const marketData = marketDataService.getCropMarketData(selectedCrop);
