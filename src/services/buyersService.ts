@@ -60,12 +60,12 @@ async function loadLiveBids(): Promise<LiveBidsData | null> {
         // Check staleness — bids older than 36 hours are stale
         const scanAge = now - new Date(data.scanTime).getTime();
         if (scanAge > 36 * 60 * 60 * 1000) {
-            console.warn('[LiveBids] Data is stale (>36h old), will use as fallback only');
+            if (import.meta.env.DEV) console.warn('[LiveBids] Data is stale (>36h old), will use as fallback only');
         }
 
         _liveBidsCache = data;
         _liveBidsCacheTime = now;
-        console.log(`[LiveBids] Loaded ${data.totalBids} scraped bids from ${data.scanTime}`);
+        if (import.meta.env.DEV) console.log(`[LiveBids] Loaded ${data.totalBids} scraped bids from ${data.scanTime}`);
         return data;
     } catch {
         // live_bids.json doesn't exist yet or failed to load — not an error
@@ -207,17 +207,17 @@ async function fetchBuyerContactsFromApi(crop: string): Promise<ApiBuyerDirector
                 lng: b.lng,
                 cropType: b.cropType as CropType,
                 organic: b.organic ?? false,
-                railConfidence: b.railConfidence ?? null,
-                contactRole: b.contactName ?? 'Grain Desk',
-                facilityPhone: b.contactPhone ?? null,
-                website: b.website ?? null,
-                verifiedStatus: b.verified ? 'verified' as const : 'unverified' as const,
-                contactConfidenceScore: b.confidenceScore ?? null,
+                railConfidence: b.railConfidence ?? undefined,
+                contactName: b.contactName ?? 'Grain Desk',
+                contactPhone: b.contactPhone ?? undefined,
+                website: b.website ?? undefined,
+                verified: b.verified ?? false,
+                confidenceScore: b.confidenceScore ?? undefined,
                 nearTransload: b.nearTransload ?? false,
                 railAccessible: b.railAccessible ?? false,
                 cashBid: b.cashPrice ?? null,
                 postedBasis: b.basis ?? null,
-            } as any));
+            } as Buyer));
     }
 }
 
@@ -286,15 +286,14 @@ export const fetchRealBuyersFromGoogle = async (
         // Step 1: Enrich existing buyers with scraped prices
         for (const buyer of filteredBuyers) {
             // Skip buyers that already have a real bid from the backend
-            const buyerAny = buyer as any;
-            if (buyerAny.cashBid != null) continue;
+            if (buyer.cashBid != null) continue;
 
             const scrapedBid = getBestScrapedBid(liveBids, buyer.name, selectedCrop);
             if (scrapedBid) {
-                buyerAny.cashBid = scrapedBid.cashBid;
-                buyerAny.postedBasis = scrapedBid.basis;
-                buyerAny.bidDate = scrapedBid.scrapedAt;
-                buyerAny.bidSource = `${scrapedBid.source} (${scrapedBid.sourceUrl || 'scraped'})`;
+                buyer.cashBid = scrapedBid.cashBid;
+                buyer.postedBasis = scrapedBid.basis;
+                buyer.bidDate = scrapedBid.scrapedAt;
+                buyer.bidSource = `${scrapedBid.source} (${scrapedBid.sourceUrl || 'scraped'})`;
                 enrichedCount++;
             }
         }
@@ -331,7 +330,7 @@ export const fetchRealBuyersFromGoogle = async (
         }
 
         if (enrichedCount > 0 || newScrapedBuyers.length > 0) {
-            console.log(`[LiveBids] Enriched ${enrichedCount} existing buyers, added ${newScrapedBuyers.length} new scraped buyers for ${selectedCrop}`);
+            if (import.meta.env.DEV) console.log(`[LiveBids] Enriched ${enrichedCount} existing buyers, added ${newScrapedBuyers.length} new scraped buyers for ${selectedCrop}`);
         }
     }
 
@@ -358,8 +357,7 @@ export const fetchRealBuyersFromGoogle = async (
         // Priority 1: Real scraped bid (from bid-pipeline → DB → API)
         // Priority 2: USDA per-state basis (Futures + State-Level Basis)
         // Priority 3: Regional fallback basis
-        const buyerAny = buyer as Buyer & { cashBid?: number | string | null; bidSource?: string | null };
-        const hasRealBid = buyerAny.cashBid != null;
+        const hasRealBid = buyer.cashBid != null;
         let newCashPrice: number;
         let basis: number;
         let basisConfidence: 'verified' | 'estimated';
@@ -367,13 +365,27 @@ export const fetchRealBuyersFromGoogle = async (
 
         if (hasRealBid) {
             // Use the real scraped cash bid directly (parse it because Postgres numeric returns as string)
-            newCashPrice = typeof buyerAny.cashBid === 'number'
-                ? buyerAny.cashBid
-                : parseFloat(String(buyerAny.cashBid));
-            // Back-calculate basis from the real cash bid
-            basis = parseFloat((newCashPrice - currentFutures).toFixed(2));
+            newCashPrice = typeof buyer.cashBid === 'number'
+                ? buyer.cashBid
+                : parseFloat(String(buyer.cashBid));
+
+            if (selectedCrop === 'Sunflowers') {
+                // Sunflowers have NO futures contract — price IS the cash bid
+                // Basis is meaningless, set to 0
+                basis = 0;
+            } else {
+                // Back-calculate basis from the real cash bid
+                basis = parseFloat((newCashPrice - currentFutures).toFixed(2));
+            }
             basisConfidence = 'verified';
-            basisSourceLabel = buyerAny.bidSource || 'Scraped Bid';
+            basisSourceLabel = buyer.bidSource || 'Scraped Bid';
+        } else if (selectedCrop === 'Sunflowers') {
+            // Sunflowers fallback: use the benchmark price (Enderlin ADM)
+            // No USDA per-state basis available for sunflowers
+            newCashPrice = currentFutures; // For sunflowers, "futures" = benchmark cash
+            basis = 0;
+            basisConfidence = 'estimated';
+            basisSourceLabel = `${benchmark.name} Benchmark`;
         } else {
             // Use USDA per-state basis — this is the key improvement
             // Each state now gets its own accurate basis from the USDA MARS API
@@ -400,9 +412,30 @@ export const fetchRealBuyersFromGoogle = async (
         // For sunflowers (priced in $/cwt), convert freight to $/cwt
         // so that Net = Cash($/cwt) - Freight($/cwt) is unit-consistent.
         const rawFreightPerBushel = freightInfo.ratePerBushel;
-        const newFreightCost = convertFreightToCropUnit(rawFreightPerBushel, selectedCrop);
+        let newFreightCost = convertFreightToCropUnit(rawFreightPerBushel, selectedCrop);
+
+        // ── Freight Normalizer Guard (DTO contract) ──────────────────────
+        // Maximum sane freight per unit — anything above this is a raw
+        // per-car or per-ton rate that leaked through without conversion.
+        const MAX_FREIGHT: Record<string, number> = {
+            'Yellow Corn': 5.00,      // Max ~$5/bu (CA shuttle = ~$1.60)
+            'White Corn': 5.00,
+            'Soybeans': 5.00,
+            'Wheat': 5.00,
+            'Sunflowers': 20.00,      // $/cwt — higher nominal due to unit
+        };
+        const maxFreight = MAX_FREIGHT[selectedCrop] || 5.00;
+        if (newFreightCost > maxFreight) {
+            if (import.meta.env.DEV) {
+                console.warn(`[FreightGuard] ${buyer.name}: freight $${newFreightCost.toFixed(2)} exceeds max $${maxFreight} for ${selectedCrop} — clamping. Raw mode: ${freightInfo.mode}`);
+            }
+            newFreightCost = maxFreight;
+        }
 
         // Net Price = Cash Price - Freight (both in same unit now)
+        // NaN guards: if any upstream value is bad, clamp to 0
+        if (isNaN(newCashPrice)) newCashPrice = 0;
+        if (isNaN(newFreightCost)) newFreightCost = 0;
         const newNetPrice = newCashPrice - newFreightCost;
 
         // Benchmark comparison (crop-specific):
@@ -460,7 +493,11 @@ export const fetchRealBuyersFromGoogle = async (
             lastUpdated: now,
             provenance,
             verified,
-            dataSource: hasRealBid ? (buyerAny.bidSource || 'scraped-bid') : basisSourceLabel
+            dataSource: hasRealBid ? (buyer.bidSource || 'scraped-bid') : basisSourceLabel,
+            priceSource: hasRealBid
+                ? (buyer.bidDate && (Date.now() - new Date(buyer.bidDate).getTime()) > 36 * 60 * 60 * 1000
+                    ? 'stale' as const : 'live_bid' as const)
+                : 'usda_estimate' as const
         };
     }));
 
@@ -572,11 +609,11 @@ export const getBuyersByRegion = (buyers: Buyer[], region: string): Buyer[] => {
 // Get market data freshness info
 export const getMarketDataInfo = async (): Promise<{ futuresPrice: number; dataSource: string; lastUpdated: string }> => {
     const marketData = marketDataService.getMarketData();
-    const usadData = usdaMarketService.getDataFreshness();
+    const usdaData = usdaMarketService.getDataFreshness();
 
     return {
         futuresPrice: marketData.futuresPrice,
-        dataSource: `${marketData.source} / ${usadData.source}`,
-        lastUpdated: usadData.lastUpdated
+        dataSource: `${marketData.source} / ${usdaData.source}`,
+        lastUpdated: usdaData.lastUpdated
     };
 };

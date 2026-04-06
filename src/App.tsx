@@ -46,11 +46,17 @@ function App() {
                 </div>
             </div>
 
-            {/* Main Content */}
+            {/* Main Content — keep-alive: all pages stay mounted, CSS toggles visibility */}
             <main className="w-full h-full">
-                {activeTab === 'map' && <HeatMapPage selectedCrop={selectedCrop} />}
-                {activeTab === 'buyers' && <BuyersPage selectedCrop={selectedCrop} />}
-                {activeTab === 'settings' && <SettingsPage />}
+                <div className="w-full h-full" style={{ display: activeTab === 'map' ? 'contents' : 'none' }}>
+                    <HeatMapPage selectedCrop={selectedCrop} isVisible={activeTab === 'map'} />
+                </div>
+                <div className="w-full h-full" style={{ display: activeTab === 'buyers' ? 'contents' : 'none' }}>
+                    <BuyersPage selectedCrop={selectedCrop} />
+                </div>
+                <div className="w-full h-full" style={{ display: activeTab === 'settings' ? 'contents' : 'none' }}>
+                    <SettingsPage />
+                </div>
             </main>
 
             {/* Bottom Navigation */}

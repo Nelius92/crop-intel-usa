@@ -57,12 +57,12 @@ describe('Pricing Accuracy', () => {
             expect(sunflowerBenchmark.name).toBe('Enderlin ADM');
         });
 
-        it('corn benchmark freight should be $0.30 (truck from Campbell)', () => {
-            expect(cornBenchmark.freight).toBe(0.30);
+        it('corn benchmark freight should be $0.25 (self-delivery from Campbell)', () => {
+            expect(cornBenchmark.freight).toBe(0.25);
         });
 
-        it('sunflower benchmark freight should be $0 (farmers drive there)', () => {
-            expect(sunflowerBenchmark.freight).toBe(0);
+        it('sunflower benchmark freight should be $1.00/cwt (self-delivery to Enderlin)', () => {
+            expect(sunflowerBenchmark.freight).toBe(1.00);
         });
 
         it('corn price unit should be $/bu', () => {

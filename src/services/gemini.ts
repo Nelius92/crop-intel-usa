@@ -17,7 +17,8 @@ export class GeminiService {
     // (gemini-3-flash-preview doesn't support search grounding on free tier)
     private model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
-        tools: [{ googleSearch: {} } as any]
+        // @ts-expect-error — googleSearch tool not yet in SDK types
+        tools: [{ googleSearch: {} }]
     });
 
     // Helper to simulate live market ticks
@@ -121,7 +122,7 @@ export class GeminiService {
 
         if (!API_KEY) {
             console.warn("Using fallback buyer data (No API Key)");
-            const filtered = FALLBACK_BUYERS_DATA.filter((b: any) => b.cropType === crop);
+            const filtered = FALLBACK_BUYERS_DATA.filter((b) => b.cropType === crop);
             return filtered.length > 0 ? filtered : FALLBACK_BUYERS_DATA;
         }
 
@@ -163,7 +164,7 @@ export class GeminiService {
         try {
             const result = await this.model.generateContent(prompt);
             const text = result.response.text();
-            console.log("Gemini Buyer Raw Response:", text); // Debug log
+
 
             const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
@@ -237,7 +238,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
         }
     }
 
-    async verifyMarketData(buyers: any[]): Promise<any[]> {
+    async verifyMarketData(buyers: Buyer[]): Promise<Buyer[]> {
         if (!API_KEY || buyers.length === 0) return buyers;
 
         const prompt = `

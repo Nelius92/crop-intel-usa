@@ -28,7 +28,13 @@ export const truckFreightService = {
     /**
      * Calculate truck freight from Campbell, MN to a destination.
      * Special case: Hankinson = fixed $0.30/bu benchmark.
+     *
+     * IMPORTANT: Truck grain is only economically viable for short-haul
+     * (≤200 road miles). Beyond that, rail is always cheaper.
+     * We cap the calculation at MAX_TRUCK_MILES to prevent absurd rates.
      */
+    MAX_TRUCK_MILES: 200,
+
     calculateRate: (
         destLat: number,
         destLng: number,
@@ -51,12 +57,15 @@ export const truckFreightService = {
         );
         const roadMiles = Math.round(straightLine * 1.3);
 
-        const rate = parseFloat((roadMiles * RATE_PER_BU_PER_MILE).toFixed(2));
+        // Cap at MAX_TRUCK_MILES — beyond this, rail should be used instead
+        const effectiveMiles = Math.min(roadMiles, truckFreightService.MAX_TRUCK_MILES);
+        const rate = parseFloat((effectiveMiles * RATE_PER_BU_PER_MILE).toFixed(2));
 
+        const capped = roadMiles > truckFreightService.MAX_TRUCK_MILES;
         return {
             ratePerBushel: rate,
             distanceMiles: roadMiles,
-            formula: `Truck · ${roadMiles} mi × $${RATE_PER_BU_PER_MILE}/bu/mi`,
+            formula: `Truck · ${effectiveMiles}${capped ? ` (capped from ${roadMiles})` : ''} mi × $${RATE_PER_BU_PER_MILE}/bu/mi`,
             mode: 'truck'
         };
     }

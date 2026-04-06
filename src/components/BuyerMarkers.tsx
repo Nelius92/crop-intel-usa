@@ -34,8 +34,8 @@ export const BuyerMarkers: React.FC<BuyerMarkersProps> = ({ map, buyers, onSelec
             else if (railLevel === 'confirmed') colorClass = 'bg-cyan-500';
             else if (railLevel === 'likely') colorClass = 'bg-sky-500';
 
-            // High Bid Logic (Net Price > 4.50 or Basis > 0.20)
-            const isHighBid = (buyer.netPrice && buyer.netPrice > 4.50) || (buyer.basis ?? 0) > 0.20;
+            // High Bid Logic — use basis-relative signal (works across all crop price levels)
+            const isHighBid = (buyer.basis ?? 0) > 0.10 || (buyer.railConfidence || 0) >= 80;
 
             // Bigger glow for high bids, subtler glow for rail confidence
             const glowClass = isHighBid

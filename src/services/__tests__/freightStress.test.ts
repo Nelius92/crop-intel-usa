@@ -207,20 +207,20 @@ describe('BNSF Rate Engine - bnsfService', () => {
         it('soybeans cost more per bushel (fewer bu/car)', () => {
             const cornRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Yellow Corn');
             const soyRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Soybeans');
-            // Same per-car, but soy = 3,667 bu/car vs corn = 4,000
+            // Same per-car, but soy = 3,723 bu/car (weigh-out at 60 lbs/bu) vs corn = 4,000
             expect(cornRate.ratePerCar).toBe(soyRate.ratePerCar);
             expect(soyRate.ratePerBushel).toBeGreaterThan(cornRate.ratePerBushel);
-            // Soy: (6075+250)/3667 = $1.72/bu
-            expect(soyRate.ratePerBushel).toBe(1.72);
+            // Soy: (6075+250)/3723 = $1.70/bu
+            expect(soyRate.ratePerBushel).toBe(1.70);
         });
 
-        it('sunflowers cost less per bushel (more bu/car, lighter)', () => {
+        it('sunflowers cost less per bushel (volume-limited, lighter)', () => {
             const cornRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Yellow Corn');
             const sunRate = bnsfService.calculateRate('CA', 'Modesto', undefined, undefined, 'Sunflowers');
-            // Sunflowers: 8,800 bu/car (25 lbs/bu)
+            // Sunflowers: 4,148 bu/car (cube-out at 5,161 cu ft, 25 lbs/bu)
             expect(sunRate.ratePerBushel).toBeLessThan(cornRate.ratePerBushel);
-            // (6075+250)/8800 = $0.72/bu
-            expect(sunRate.ratePerBushel).toBe(0.72);
+            // (6075+250)/4148 = $1.52/bu
+            expect(sunRate.ratePerBushel).toBe(1.52);
         });
 
         it('wheat same per-bushel as soybeans (same 60 lbs/bu)', () => {

@@ -1,5 +1,5 @@
 import { RailNetwork, RailNode, Buyer } from '../types';
-import { bnsfService } from './bnsfService';
+import { bnsfService, CAMPBELL_MN } from './bnsfService';
 import { truckFreightService } from './truckFreightService';
 import { cacheService, CACHE_TTL } from './cacheService';
 
@@ -314,8 +314,16 @@ export const calculateFreight = async (
                 }
             }
 
+            // For long-haul (>200 miles), force rail even if railAccessible is false.
+            // Nobody trucks grain 500+ miles. It's economically impossible.
+            const straightLine = getDistanceFromLatLonInMiles(
+                CAMPBELL_MN.lat, CAMPBELL_MN.lng, buyerLocation.lat, buyerLocation.lng
+            );
+            const estimatedRoadMiles = Math.round(straightLine * 1.3);
+            const forceRail = estimatedRoadMiles > 200 && !!state;
+
             // Decision: Rail or Truck?
-            if (railAccessible && state) {
+            if ((railAccessible || forceRail) && state) {
                 // Use BNSF Rate Engine FROM Campbell, MN
                 const bnsfRate = bnsfService.calculateRate(state, city, buyerLocation.lat, buyerLocation.lng, crop);
 
@@ -329,7 +337,7 @@ export const calculateFreight = async (
                 cacheService.set('freight', cacheKey, result, CACHE_TTL.FREIGHT_MS);
                 resolve(result);
             } else {
-                // Use truck model
+                // Use truck model (short-haul only, capped at 200 miles)
                 const truckRate = truckFreightService.calculateRate(
                     buyerLocation.lat, buyerLocation.lng,
                     city, state

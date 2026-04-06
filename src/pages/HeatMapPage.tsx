@@ -45,7 +45,21 @@ function rankTopStatesByCashBid(buyers: Buyer[]): string[] {
     return rankedStates.slice(0, 3).map((entry) => entry.state);
 }
 
-function buildHeatmapFromBuyers(buyers: Buyer[]): HeatmapPoint[] {
+/**
+ * Build heatmap points from buyer data.
+ * Thresholds are crop-aware so opportunity dots light up correctly for all commodities.
+ */
+function buildHeatmapFromBuyers(buyers: Buyer[], crop: CropType = 'Yellow Corn'): HeatmapPoint[] {
+    // Crop-aware thresholds for opportunity classification
+    const thresholds: Record<string, { netPrice: number; cashPrice: number }> = {
+        'Yellow Corn':    { netPrice: 4.75, cashPrice: 5.0 },
+        'Soybeans':       { netPrice: 10.50, cashPrice: 11.0 },
+        'Hard Red Spring Wheat': { netPrice: 5.50, cashPrice: 6.0 },
+        'Sunflowers':     { netPrice: 20.0, cashPrice: 22.0 },
+        'Durum Wheat':    { netPrice: 7.0, cashPrice: 7.5 },
+    };
+    const t = thresholds[crop] || thresholds['Yellow Corn'];
+
     return buyers
         .filter((buyer) => Number.isFinite(buyer.lat) && Number.isFinite(buyer.lng))
         .sort((a, b) => (b.cashPrice || 0) - (a.cashPrice || 0))
@@ -58,11 +72,12 @@ function buildHeatmapFromBuyers(buyers: Buyer[]): HeatmapPoint[] {
             basis: Number((buyer.basis || 0).toFixed(2)),
             change24h: 0,
             isOpportunity:
-                (buyer.netPrice || 0) >= 4.75 ||
-                (buyer.cashPrice || 0) >= 5.0 ||
+                (buyer.netPrice || 0) >= t.netPrice ||
+                (buyer.cashPrice || 0) >= t.cashPrice ||
                 (buyer.railConfidence || 0) >= 70,
             regionName: `${buyer.city}, ${buyer.state}`,
-            marketLabel: `${buyer.name} · ${buyer.type} · ${buyer.railConfidence || 0}% rail`
+            marketLabel: `${buyer.name} · ${buyer.type} · ${buyer.railConfidence || 0}% rail`,
+            buyerId: buyer.id   // Store ID for click-to-buyer resolution
         }));
 }
 
@@ -84,9 +99,10 @@ function sortBestBnsfBuyers(buyers: Buyer[]): Buyer[] {
 
 interface HeatMapPageProps {
     selectedCrop: CropType;
+    isVisible?: boolean;
 }
 
-export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
+export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisible = true }) => {
     const [heatmapData, setHeatmapData] = useState<HeatmapPoint[]>([]);
     const [buyers, setBuyers] = useState<Buyer[]>([]);
     const [transloaders, setTransloaders] = useState<Transloader[]>([]);
@@ -95,11 +111,27 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [topStates, setTopStates] = useState<string[]>([]);
 
-    // Map Layer Toggles
-    const [showHeatmap, setShowHeatmap] = useState(true);
-    const [showRail, setShowRail] = useState(true);
-    const [showBnsfOpportunities, setShowBnsfOpportunities] = useState(true);
-    const [showTransloaders, setShowTransloaders] = useState(true);
+    // Map Layer Toggles — persisted to localStorage
+    const [showHeatmap, setShowHeatmap] = useState(() =>
+        localStorage.getItem('ci_layer_heatmap') !== 'false'
+    );
+    const [showRail, setShowRail] = useState(() =>
+        localStorage.getItem('ci_layer_rail') !== 'false'
+    );
+    const [showBnsfOpportunities, setShowBnsfOpportunities] = useState(() =>
+        localStorage.getItem('ci_layer_bnsf') !== 'false'
+    );
+    const [showTransloaders, setShowTransloaders] = useState(() =>
+        localStorage.getItem('ci_layer_transloaders') !== 'false'
+    );
+
+    // Persist layer toggles whenever they change
+    useEffect(() => {
+        localStorage.setItem('ci_layer_heatmap', String(showHeatmap));
+        localStorage.setItem('ci_layer_rail', String(showRail));
+        localStorage.setItem('ci_layer_bnsf', String(showBnsfOpportunities));
+        localStorage.setItem('ci_layer_transloaders', String(showTransloaders));
+    }, [showHeatmap, showRail, showBnsfOpportunities, showTransloaders]);
 
     const fetchData = async (forceRefresh: boolean = false) => {
         setLoading(true);
@@ -115,7 +147,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
             if (morningRecommendations && morningRecommendations.buyers.length > 0) {
                 setTopStates(morningRecommendations.topStates);
                 setBuyers(sortBestBnsfBuyers(morningRecommendations.buyers).slice(0, 30));
-                setHeatmapData(buildHeatmapFromBuyers(morningRecommendations.buyers));
+                setHeatmapData(buildHeatmapFromBuyers(morningRecommendations.buyers, selectedCrop));
                 setLastUpdated(new Date(morningRecommendations.runEndedAt ?? morningRecommendations.runStartedAt));
                 return;
             }
@@ -134,7 +166,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
 
             setTopStates(rankedStates);
             setBuyers(refinedTopStateBuyers.slice(0, 30));
-            setHeatmapData(buildHeatmapFromBuyers(rankingPool));
+            setHeatmapData(buildHeatmapFromBuyers(rankingPool, selectedCrop));
 
             setLastUpdated(new Date());
 
@@ -157,7 +189,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
         <div className="w-full h-full relative">
             <CornMap
                 showHeatmap={showHeatmap}
-                showBuyers={true} // General buyer dots
+                showBuyers={true}
                 showRail={showRail}
                 showBnsfOpportunities={showBnsfOpportunities}
                 showTransloaders={showTransloaders}
@@ -168,6 +200,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop }) => {
                 transloaders={transloaders}
                 hoveredRegionId={null}
                 topStates={topStates}
+                isVisible={isVisible}
             />
 
             {/* Right Side Stack: Map Controls */}

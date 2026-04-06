@@ -290,6 +290,19 @@ export const bnsfService = {
         const totalCost = ratePerCar + FUEL_SURCHARGE_AVG;
         const bushelsPerCar = getCropBushelsPerCar(crop);
         const ratePerBushel = parseFloat((totalCost / bushelsPerCar).toFixed(2));
+        // NaN guard: if bushelsPerCar was 0 or undefined, clamp to safe fallback
+        if (isNaN(ratePerBushel) || !isFinite(ratePerBushel)) {
+            return {
+                origin: CAMPBELL_MN.name,
+                destination: `${destinationCity}, ${destinationState}`,
+                ratePerCar,
+                ratePerBushel: 1.00, // Safe fallback
+                fuelSurcharge: FUEL_SURCHARGE_AVG,
+                tariffItem: `${tariffItem} (fallback)`,
+                distanceMiles,
+                formula: `BNSF fallback rate — crop bushels/car unavailable`
+            };
+        }
 
         return {
             origin: CAMPBELL_MN.name,

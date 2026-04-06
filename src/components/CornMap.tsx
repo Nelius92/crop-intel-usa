@@ -26,6 +26,7 @@ interface CornMapProps {
     theme?: string;
     topStates?: string[]; // List of state codes to highlight (e.g. ['CA', 'TX'])
     hoveredRegionId?: string | null;
+    isVisible?: boolean; // Whether the map tab is currently active
 }
 
 const STATE_CENTERS: Record<string, [number, number]> = {
@@ -72,15 +73,20 @@ export const CornMap: React.FC<CornMapProps> = ({
     heatmapMode = 'default',
     view = 'default',
     hoveredRegionId,
-    topStates = []
+    topStates = [],
+    isVisible = true
 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<mapboxgl.Map | null>(null);
     const lastAutoFocusKey = useRef<string>('');
+    const buyersRef = useRef<Buyer[]>(buyers); // Ref to avoid stale closure in map click handlers
     const [selectedItem, setSelectedItem] = useState<HeatmapPoint | Buyer | Transloader | BNSFOpportunity | null>(null);
     const [styleLoaded, setStyleLoaded] = useState(false);
     const [bnsfLayersLoaded, setBnsfLayersLoaded] = useState(false);
     const [zoomedState, setZoomedState] = useState<string | null>(null);
+
+    // Keep buyersRef in sync with latest prop
+    useEffect(() => { buyersRef.current = buyers; }, [buyers]);
 
     // Compute State Metrics for Coloring/Blinking
     const stateMetrics = React.useMemo(() => {
@@ -574,8 +580,13 @@ export const CornMap: React.FC<CornMapProps> = ({
                 .catch(console.error);
 
 
-            // Events
+            // Events — Guard state-fill clicks so data point clicks don't also trigger zoom
             map.current?.on('click', 'state-fill', (e) => {
+                // Don't zoom if the click hit a data point layer
+                const pointLayers = ['corn-point-layer', 'bnsf-opp-layer', 'clusters', 'bnsf-opp-clusters'];
+                const hitFeatures = map.current?.queryRenderedFeatures(e.point, { layers: pointLayers.filter(l => map.current?.getLayer(l)) });
+                if (hitFeatures && hitFeatures.length > 0) return; // A data point handled this click
+
                 if (e.features && e.features.length > 0) {
                     const feature = e.features[0];
                     const stateName = feature.properties?.STATE_NAME;
@@ -599,7 +610,18 @@ export const CornMap: React.FC<CornMapProps> = ({
             map.current?.on('click', 'corn-point-layer', (e) => {
                 e.originalEvent.stopPropagation();
                 if (e.features && e.features[0]) {
-                    setSelectedItem(e.features[0].properties as any);
+                    const props = e.features[0].properties;
+                    // Try to resolve back to the full Buyer object via buyerId
+                    const buyerId = props?.buyerId || props?.id;
+                    if (buyerId) {
+                        const matchedBuyer = buyersRef.current.find(b => b.id === buyerId || `buyer-heat-${b.id}` === buyerId);
+                        if (matchedBuyer) {
+                            setSelectedItem(matchedBuyer);
+                            return;
+                        }
+                    }
+                    // Fallback: pass heatmap properties (shows generic HeatmapPoint view)
+                    setSelectedItem(props as any);
                 }
             });
 
@@ -750,6 +772,16 @@ export const CornMap: React.FC<CornMapProps> = ({
         });
     }, []);
 
+    // Resize map when tab becomes visible (keep-alive pattern)
+    // Mapbox renders to 0x0 when container is display:none
+    useEffect(() => {
+        if (isVisible && map.current) {
+            // Small delay ensures the container has its final dimensions
+            const timer = setTimeout(() => map.current?.resize(), 50);
+            return () => clearTimeout(timer);
+        }
+    }, [isVisible]);
+
     // Toggle layers visibility
     useEffect(() => {
         if (!map.current || !styleLoaded) return;
@@ -814,6 +846,8 @@ export const CornMap: React.FC<CornMapProps> = ({
     }, [topStates, styleLoaded]);
 
     // Auto-focus the top 3 opportunity states when the ranking changes.
+    // SMART: If the user's current viewport already contains data points
+    // for the new crop, do NOT re-center — preserve their context.
     useEffect(() => {
         if (!map.current || !styleLoaded || topStates.length === 0 || zoomedState) return;
 
@@ -827,8 +861,32 @@ export const CornMap: React.FC<CornMapProps> = ({
         if (lastAutoFocusKey.current === focusKey) return;
         lastAutoFocusKey.current = focusKey;
 
+        // ── Viewport preservation check ─────────────────────────────────
+        // If the current viewport contains any data points for this crop,
+        // the user is already looking at relevant data — don't rip them away.
+        const currentBounds = map.current.getBounds();
+        if (currentBounds) {
+            const hasDataInView = heatmapData.some(pt =>
+                pt.lat >= currentBounds.getSouth() &&
+                pt.lat <= currentBounds.getNorth() &&
+                pt.lng >= currentBounds.getWest() &&
+                pt.lng <= currentBounds.getEast()
+            ) || buyers.some(b =>
+                b.lat >= currentBounds.getSouth() &&
+                b.lat <= currentBounds.getNorth() &&
+                b.lng >= currentBounds.getWest() &&
+                b.lng <= currentBounds.getEast()
+            );
+
+            if (hasDataInView) {
+                // Data exists in the current view — preserve the user's viewport
+                return;
+            }
+        }
+
+        // No data in current view — auto-focus to where the data is
         if (centers.length === 1) {
-            map.current.flyTo({ center: centers[0], zoom: 5.5, essential: true });
+            map.current.flyTo({ center: centers[0], zoom: 5.5, essential: true, duration: 1200 });
             return;
         }
 
@@ -840,7 +898,7 @@ export const CornMap: React.FC<CornMapProps> = ({
             duration: 1200,
             essential: true
         });
-    }, [topStates, styleLoaded, zoomedState]);
+    }, [topStates, styleLoaded, zoomedState, heatmapData, buyers]);
 
     // Update State Colors Effect (Fill Layer)
     useEffect(() => {

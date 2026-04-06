@@ -208,7 +208,7 @@ export const usdaMarketService = {
 
             if (response.states && Object.keys(response.states).length > 0) {
                 cacheService.set('usda', cacheKey, response.states, CACHE_TTL.USDA_MS);
-                console.log(`[USDA] State basis loaded: ${Object.keys(response.states).length} states for ${commodity}`);
+                if (import.meta.env.DEV) console.log(`[USDA] State basis loaded: ${Object.keys(response.states).length} states for ${commodity}`);
                 return response.states;
             }
         } catch (error) {

@@ -119,7 +119,7 @@ export function calculateBuyerIntelScore(buyer: Buyer, crop: CropType, benchmark
     });
 
     // 6. Bid Freshness (10 pts)
-    const hasRealBid = !!(buyer as any).bidSource;
+    const hasRealBid = !!buyer.bidSource;
     const bidPts = hasRealBid ? 10 : 0;
     signals.push({
         name: 'Bid Freshness',
@@ -160,7 +160,7 @@ export async function fetchBuyerExplanation(
                 verifiedStatus: buyer.verified ? 'verified' : 'unverified',
                 hasPhone: !!buyer.contactPhone,
                 freightCost: buyer.freightCost ?? null,
-                hasRealBid: !!(buyer as any).bidSource,
+                hasRealBid: !!buyer.bidSource,
                 website: buyer.website ?? null,
                 contactPhone: buyer.contactPhone ?? null,
             },

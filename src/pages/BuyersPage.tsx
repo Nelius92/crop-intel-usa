@@ -11,6 +11,7 @@ import { marketDataService } from '../services/marketDataService';
 import { Buyer, CropType } from '../types';
 import { RefreshCw, AlertTriangle, Clock } from 'lucide-react';
 import { getCropPriceUnit } from '../services/bnsfService';
+import { calculateBuyerIntelScore } from '../services/buyerIntelService';
 
 interface BuyersPageProps {
     selectedCrop: CropType;
@@ -31,7 +32,13 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
-    const [oracle, setOracle] = useState<any>(null);
+    const [oracle, setOracle] = useState<{
+        futuresPrice: number;
+        contractMonth: string;
+        benchmarkBasis: number;
+        benchmarkCashPrice: number;
+        benchmarkName: string;
+    } | null>(null);
     const [cacheAge, setCacheAge] = useState<number | null>(null);
     const [fromCache, setFromCache] = useState(false);
 
@@ -62,7 +69,14 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
             setFromCache(ageBeforeFetch !== null && !forceRefresh);
             setCacheAge(ageAfterFetch);
 
-            const sortedData = [...liveData].sort((a, b) => (b.netPrice ?? 0) - (a.netPrice ?? 0));
+            // Sort by Intel Score (primary) then Net Price (tiebreaker)
+            const benchmarkNet = marketData.futuresPrice + benchmark.basis - (benchmark.freight ?? 0);
+            const sortedData = [...liveData].sort((a, b) => {
+                const scoreA = calculateBuyerIntelScore(a, selectedCrop, benchmarkNet).score;
+                const scoreB = calculateBuyerIntelScore(b, selectedCrop, benchmarkNet).score;
+                if (scoreB !== scoreA) return scoreB - scoreA;
+                return (b.netPrice ?? 0) - (a.netPrice ?? 0);
+            });
             setBuyers(sortedData);
             setLoading(false);
         } catch (err) {
@@ -104,7 +118,7 @@ export const BuyersPage: React.FC<BuyersPageProps> = ({ selectedCrop }) => {
                             Crop <span className="text-red-500">Intel</span>
                         </h2>
                         <div className="flex items-center gap-2 text-zinc-400 text-xs sm:text-sm flex-wrap">
-                            <span className="hidden sm:inline">Sorted by Net Price</span>
+                            <span className="hidden sm:inline">Sorted by Intel Score</span>
                             {oracle && (
                                 <>
                                     <span className="hidden sm:inline text-zinc-600">•</span>

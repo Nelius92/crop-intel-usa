@@ -13,6 +13,7 @@ export interface HeatmapPoint extends Coordinates {
     isOpportunity: boolean;
     regionName?: string; // For display
     marketLabel?: string; // e.g., "Strong export demand"
+    buyerId?: string;     // Links back to Buyer.id for click resolution
 }
 
 export type BuyerType = 'ethanol' | 'feedlot' | 'processor' | 'river' | 'shuttle' | 'export' | 'elevator' | 'crush' | 'transload';
@@ -114,6 +115,11 @@ export interface Buyer extends Coordinates {
     statusConfidence?: number;   // 0-100
     statusReason?: string;
     priceSource?: 'live_bid' | 'usda_estimate' | 'stale' | 'default';
+    // ── Bid Pipeline Fields (scraped → DB → API → frontend) ─────
+    bidSource?: string;          // e.g. "Scoular (https://...) (scraped)"
+    bidDate?: string;            // ISO timestamp of when bid was scraped
+    cashBid?: number | string | null;   // Raw scraped cash bid from DB
+    postedBasis?: number | string | null; // Raw scraped basis from DB
 }
 
 export interface MarketOracle {
