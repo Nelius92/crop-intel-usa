@@ -7,6 +7,7 @@
 
 import { Buyer, CropType } from '../types';
 import { apiPostJson } from './apiClient';
+import { DroughtSeverity } from './droughtService';
 
 // ── Crop ↔ Buyer Type Relevance Map ─────────────────────────────────
 const CROP_TYPE_RELEVANCE: Record<CropType, Record<string, number>> = {
@@ -47,7 +48,7 @@ export interface BuyerIntelResult {
     signals: IntelSignal[];
 }
 
-export function calculateBuyerIntelScore(buyer: Buyer, crop: CropType, benchmarkPrice?: number): BuyerIntelResult {
+export function calculateBuyerIntelScore(buyer: Buyer, crop: CropType, benchmarkPrice?: number, droughtSeverity?: DroughtSeverity): BuyerIntelResult {
     const signals: IntelSignal[] = [];
 
     // 1. Crop Match (25 pts)
@@ -128,13 +129,34 @@ export function calculateBuyerIntelScore(buyer: Buyer, crop: CropType, benchmark
         reason: hasRealBid ? 'Live scraped bid available' : 'Estimated bid only',
     });
 
+    // 7. Drought Impact (5 pts bonus — supply-side intelligence)
+    let droughtPts = 0;
+    if (droughtSeverity) {
+        switch (droughtSeverity) {
+            case 'exceptional': case 'extreme': droughtPts = 5; break;
+            case 'severe': droughtPts = 4; break;
+            case 'moderate': droughtPts = 2; break;
+            default: droughtPts = 0;
+        }
+    }
+    signals.push({
+        name: 'Drought Impact',
+        points: droughtPts,
+        maxPoints: 5,
+        reason: droughtPts > 0
+            ? `${droughtSeverity} drought — tighter supply boosts buyer urgency`
+            : droughtSeverity === 'abnormal'
+                ? 'Minor dryness — no significant supply pressure'
+                : 'No drought conditions in region',
+    });
+
     // Total
     const score = signals.reduce((sum, s) => sum + s.points, 0);
 
     let label: string, emoji: string, color: string;
-    if (score >= 80) { label = 'Top Target'; emoji = '🔥'; color = 'green'; }
-    else if (score >= 60) { label = 'Strong Lead'; emoji = '✅'; color = 'blue'; }
-    else if (score >= 40) { label = 'Worth Exploring'; emoji = '⚠️'; color = 'amber'; }
+    if (score >= 85) { label = 'Top Target'; emoji = '🔥'; color = 'green'; }
+    else if (score >= 65) { label = 'Strong Lead'; emoji = '✅'; color = 'blue'; }
+    else if (score >= 45) { label = 'Worth Exploring'; emoji = '⚠️'; color = 'amber'; }
     else { label = 'Low Priority'; emoji = '⛔'; color = 'gray'; }
 
     return { score, label, emoji, color, signals };

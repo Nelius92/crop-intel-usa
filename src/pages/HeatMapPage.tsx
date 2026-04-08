@@ -124,6 +124,9 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisibl
     const [showTransloaders, setShowTransloaders] = useState(() =>
         localStorage.getItem('ci_layer_transloaders') !== 'false'
     );
+    const [showDrought, setShowDrought] = useState(() =>
+        localStorage.getItem('ci_layer_drought') === 'true' // Default OFF — opt-in layer
+    );
 
     // Persist layer toggles whenever they change
     useEffect(() => {
@@ -131,7 +134,8 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisibl
         localStorage.setItem('ci_layer_rail', String(showRail));
         localStorage.setItem('ci_layer_bnsf', String(showBnsfOpportunities));
         localStorage.setItem('ci_layer_transloaders', String(showTransloaders));
-    }, [showHeatmap, showRail, showBnsfOpportunities, showTransloaders]);
+        localStorage.setItem('ci_layer_drought', String(showDrought));
+    }, [showHeatmap, showRail, showBnsfOpportunities, showTransloaders, showDrought]);
 
     const fetchData = async (forceRefresh: boolean = false) => {
         setLoading(true);
@@ -193,6 +197,7 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisibl
                 showRail={showRail}
                 showBnsfOpportunities={showBnsfOpportunities}
                 showTransloaders={showTransloaders}
+                showDrought={showDrought}
                 view="usa"
                 theme="green-glow"
                 heatmapData={heatmapData}
@@ -210,11 +215,12 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisibl
                     showRail={showRail} setShowRail={setShowRail}
                     showBnsfOpportunities={showBnsfOpportunities} setShowBnsfOpportunities={setShowBnsfOpportunities}
                     showTransloaders={showTransloaders} setShowTransloaders={setShowTransloaders}
+                    showDrought={showDrought} setShowDrought={setShowDrought}
                 />
             </div>
 
             {/* Overlay Elements */}
-            <div className="absolute top-16 sm:top-20 left-4 sm:left-6 pointer-events-none z-10">
+            <div className="absolute top-20 sm:top-28 left-4 sm:left-6 pointer-events-none z-10">
                 <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
                     National <span className="text-green-400">Price Heatmap</span>
                 </h2>

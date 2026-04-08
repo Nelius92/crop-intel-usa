@@ -5,6 +5,7 @@ import { RAIL_LINES } from '../services/railService';
 import { bnsfOpportunitiesService, BNSFOpportunity } from '../services/bnsfScraperService';
 import { BuyerMarkers } from './BuyerMarkers';
 import { OpportunityDrawer } from './OpportunityDrawer';
+import { fetchStateDroughtData, StateDrought } from '../services/droughtService';
 
 // Token from environment variables
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -18,6 +19,7 @@ interface CornMapProps {
     showRail: boolean;
     showBnsfOpportunities?: boolean;
     showTransloaders?: boolean;
+    showDrought?: boolean;
     buyers?: Buyer[];
     heatmapData?: HeatmapPoint[]; // Live heatmap data
     transloaders?: Transloader[];
@@ -67,6 +69,7 @@ export const CornMap: React.FC<CornMapProps> = ({
     showRail,
     showBnsfOpportunities = true,
     showTransloaders = true,
+    showDrought = false,
     buyers = [],
     heatmapData = [],
     transloaders = [],
@@ -84,9 +87,13 @@ export const CornMap: React.FC<CornMapProps> = ({
     const [styleLoaded, setStyleLoaded] = useState(false);
     const [bnsfLayersLoaded, setBnsfLayersLoaded] = useState(false);
     const [zoomedState, setZoomedState] = useState<string | null>(null);
+    const [droughtData, setDroughtData] = useState<Map<string, StateDrought>>(new Map());
+    const droughtDataRef = useRef<Map<string, StateDrought>>(new Map());
 
     // Keep buyersRef in sync with latest prop
     useEffect(() => { buyersRef.current = buyers; }, [buyers]);
+    // Keep droughtDataRef in sync with latest state
+    useEffect(() => { droughtDataRef.current = droughtData; }, [droughtData]);
 
     // Compute State Metrics for Coloring/Blinking
     const stateMetrics = React.useMemo(() => {
@@ -123,6 +130,27 @@ export const CornMap: React.FC<CornMapProps> = ({
 
         map.current.on('load', () => {
             setStyleLoaded(true);
+
+            // Apply custom dark mode styling
+            const style = map.current?.getStyle();
+            if (style && style.layers) {
+                style.layers.forEach(layer => {
+                    const id = layer.id || '';
+                    if (id.includes('poi') || id.includes('park') || id.includes('road-minor') || id.includes('road-street') || id.includes('road-path') || id.includes('road-pedestrian') || id.includes('road-steps') || id.includes('landuse')) {
+                        map.current?.setLayoutProperty(id, 'visibility', 'none');
+                    }
+                    if (id.includes('water') && layer.type === 'fill') {
+                        map.current?.setPaintProperty(id, 'fill-color', '#0B0F19');
+                    }
+                    if (id === 'background' || id.includes('background')) {
+                        map.current?.setPaintProperty(id, 'background-color', '#141923');
+                    }
+                    if (id.includes('admin-1') && layer.type === 'line') {
+                        map.current?.setPaintProperty(id, 'line-color', '#334155');
+                        map.current?.setPaintProperty(id, 'line-opacity', 0.4);
+                    }
+                });
+            }
 
             // Add atmospheric fog for 3D depth
             map.current?.setFog({
@@ -166,9 +194,9 @@ export const CornMap: React.FC<CornMapProps> = ({
                 type: 'line',
                 source: 'us-states',
                 paint: {
-                    'line-color': '#06b6d4',
+                    'line-color': '#334155',
                     'line-width': 1,
-                    'line-opacity': 0 // Completely transparent base borders
+                    'line-opacity': 0.4 // 40% base opacity per user request
                 }
             });
 
@@ -198,6 +226,37 @@ export const CornMap: React.FC<CornMapProps> = ({
                 filter: ['in', 'STATE_NAME', '']
             }, 'state-border-highlight');
 
+            // ── Drought Monitor Fill Layer ────────────────────────────
+            // Renders BELOW state borders but above base state fill
+            // Color is dynamically set from USDM API data
+            map.current?.addLayer({
+                id: 'drought-fill',
+                type: 'fill',
+                source: 'us-states',
+                paint: {
+                    'fill-color': '#000000',
+                    'fill-opacity': 0
+                },
+                layout: {
+                    'visibility': 'none'  // Off by default — user opts in
+                }
+            }, 'state-border');
+
+            // Drought border highlight (subtle border around drought states)
+            map.current?.addLayer({
+                id: 'drought-border',
+                type: 'line',
+                source: 'us-states',
+                paint: {
+                    'line-color': '#000000',
+                    'line-width': 1.5,
+                    'line-opacity': 0
+                },
+                layout: {
+                    'visibility': 'none'
+                }
+            }, 'state-border');
+
             // --- Premium Rail Network Layers (Glow + Core + Flow) ---
             fetch('/data/bnsf-full-network.geojson')
                 .then(response => response.ok ? response.json() : Promise.reject('GeoJSON not available'))
@@ -212,7 +271,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                         });
                     }
 
-                    // 1. Outer Glow Layer (Atmospheric effect)
+                    // 1. Outer Glow Layer
                     if (!map.current.getLayer('rail-glow')) {
                         map.current.addLayer({
                             id: 'rail-glow',
@@ -220,30 +279,15 @@ export const CornMap: React.FC<CornMapProps> = ({
                             source: 'us-rail-network',
                             layout: { 'line-join': 'round', 'line-cap': 'round' },
                             paint: {
-                                'line-color': '#ff5500', // Authentic BNSF Orange Glow
-                                'line-width': [
-                                    'interpolate', ['linear'], ['zoom'],
-                                    3, 2,     // Visible at national zoom
-                                    6, 8,     // Distinct regionally
-                                    10, 20    // Very thick glow locally
-                                ],
-                                'line-opacity': [
-                                    'interpolate', ['linear'], ['zoom'],
-                                    3, 0.25,
-                                    6, 0.35,
-                                    10, 0.5
-                                ],
-                                'line-blur': [
-                                    'interpolate', ['linear'], ['zoom'],
-                                    3, 2,
-                                    6, 6,
-                                    10, 12
-                                ]
+                                'line-color': '#F97316',
+                                'line-width': 8,
+                                'line-blur': 4,
+                                'line-opacity': 0.25
                             }
                         });
                     }
 
-                    // 2. Core Line Layer (Sharp definition depending on zoom)
+                    // 2. Core Line Layer
                     if (!map.current.getLayer('rail-core')) {
                         map.current.addLayer({
                             id: 'rail-core',
@@ -251,41 +295,9 @@ export const CornMap: React.FC<CornMapProps> = ({
                             source: 'us-rail-network',
                             layout: { 'line-join': 'round', 'line-cap': 'round' },
                             paint: {
-                                'line-color': '#ffffff', // Crisp white core for BNSF tracks
-                                'line-width': [
-                                    'interpolate', ['linear'], ['zoom'],
-                                    3, 0.8,   // Crisp and legible far out
-                                    6, 2,
-                                    12, 4
-                                ],
-                                'line-opacity': [
-                                    'interpolate', ['linear'], ['zoom'],
-                                    3, 0.8,
-                                    6, 0.95,
-                                    10, 1.0
-                                ]
-                            }
-                        });
-                    }
-
-                    // 3. Flow Animation Layer (Movement effect for mainlines)
-                    if (!map.current.getLayer('rail-flow')) {
-                        map.current.addLayer({
-                            id: 'rail-flow',
-                            type: 'line',
-                            source: 'us-rail-network',
-                            // Filter for only 'main' trackage in the new NTAD schema, fallback if not main
-                            // Since new schema uses NET=M for mainline, but we'll animate everything to look dense and alive.
-                            layout: { 'line-join': 'round', 'line-cap': 'round' },
-                            paint: {
-                                'line-color': '#ffb700', // BNSF secondary yellow/gold flow
-                                'line-width': [
-                                    'interpolate', ['linear'], ['zoom'],
-                                    3, 1.5,    // More visible "data flowing" effect
-                                    8, 4
-                                ],
-                                'line-opacity': 0.8,
-                                'line-dasharray': [0, 6, 4] // Animated via setPaintProperty
+                                'line-color': '#FF6B00',
+                                'line-width': 1.5,
+                                'line-opacity': 1
                             }
                         });
                     }
@@ -321,7 +333,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                     });
                 });
 
-            map.current?.addSource('corn-heat', {
+            map.current?.addSource('market-heat', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] },
                 cluster: true,
@@ -335,9 +347,9 @@ export const CornMap: React.FC<CornMapProps> = ({
 
             // 1. Heatmap Base
             map.current?.addLayer({
-                id: 'corn-heat-layer',
+                id: 'market-heat-layer',
                 type: 'heatmap',
-                source: 'corn-heat',
+                source: 'market-heat',
                 // Optionally filter out clusters to avoid double counting, or use them.
                 // By not filtering '!', ['has', 'point_count'], the heatmap will include clusters
                 // using the max weight we defined above.
@@ -362,7 +374,7 @@ export const CornMap: React.FC<CornMapProps> = ({
             map.current?.addLayer({
                 id: 'clusters',
                 type: 'circle',
-                source: 'corn-heat',
+                source: 'market-heat',
                 filter: ['has', 'point_count'],
                 paint: {
                     'circle-color': '#0f172a', // Deep slate for cluster background
@@ -392,7 +404,7 @@ export const CornMap: React.FC<CornMapProps> = ({
             map.current?.addLayer({
                 id: 'cluster-count',
                 type: 'symbol',
-                source: 'corn-heat',
+                source: 'market-heat',
                 filter: ['has', 'point_count'],
                 layout: {
                     'text-field': '{point_count_abbreviated}',
@@ -404,27 +416,21 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
-            // 4. Unclustered Individual Points
+            // 4. Unclustered Individual Points (Buyers)
             map.current?.addLayer({
-                id: 'corn-point-layer',
+                id: 'market-point-layer',
                 type: 'circle',
-                source: 'corn-heat',
+                source: 'market-heat',
                 filter: ['!', ['has', 'point_count']],
                 minzoom: 4,
                 paint: {
                     'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 8],
                     'circle-color': [
                         'case',
-                        ['boolean', ['get', 'isOpportunity'], false],
-                        '#22c55e', // Neon green for buyers on rail
-                        '#64748b'
+                        ['>', ['coalesce', ['get', 'railScore'], 0], 50], '#00E676',
+                        '#FFD600'
                     ],
-                    'circle-stroke-color': [
-                        'case',
-                        ['boolean', ['get', 'isOpportunity'], false],
-                        '#16a34a', // Darker green stroke
-                        '#334155'
-                    ],
+                    'circle-stroke-color': 'rgba(255, 255, 255, 0.8)',
                     'circle-stroke-width': 2,
                     'circle-opacity': 0.9,
                     'circle-pitch-alignment': 'map', // Map-aligned for true 3D placement
@@ -433,19 +439,23 @@ export const CornMap: React.FC<CornMapProps> = ({
             });
 
             map.current?.addLayer({
-                id: 'corn-point-pulse',
+                id: 'market-point-pulse',
                 type: 'circle',
-                source: 'corn-heat',
-                filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'isOpportunity'], true]],
+                source: 'market-heat',
+                filter: ['!', ['has', 'point_count']],
                 minzoom: 4,
                 paint: {
                     'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 8, 10, 15],
-                    'circle-color': '#22c55e', // Neon green pulse
+                    'circle-color': [
+                        'case',
+                        ['>', ['coalesce', ['get', 'railScore'], 0], 50], '#00E676',
+                        '#FFD600'
+                    ],
                     'circle-opacity': 0.1, // Animated via setPaintProperty
                     'circle-pitch-alignment': 'map',
                     'circle-pitch-scale': 'map'
                 }
-            }, 'corn-point-layer'); // Place exactly below the main point
+            }, 'market-point-layer'); // Place exactly below the main point
 
             // --- BNSF Opportunities Layer (Scraped Data) ---
             bnsfOpportunitiesService.getLiveOpportunities().then(bnsfOpps => {
@@ -583,7 +593,7 @@ export const CornMap: React.FC<CornMapProps> = ({
             // Events — Guard state-fill clicks so data point clicks don't also trigger zoom
             map.current?.on('click', 'state-fill', (e) => {
                 // Don't zoom if the click hit a data point layer
-                const pointLayers = ['corn-point-layer', 'bnsf-opp-layer', 'clusters', 'bnsf-opp-clusters'];
+                const pointLayers = ['market-point-layer', 'bnsf-opp-layer', 'clusters', 'bnsf-opp-clusters', 'transloader-layer'];
                 const hitFeatures = map.current?.queryRenderedFeatures(e.point, { layers: pointLayers.filter(l => map.current?.getLayer(l)) });
                 if (hitFeatures && hitFeatures.length > 0) return; // A data point handled this click
 
@@ -607,7 +617,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
             });
 
-            map.current?.on('click', 'corn-point-layer', (e) => {
+            map.current?.on('click', 'market-point-layer', (e) => {
                 e.originalEvent.stopPropagation();
                 if (e.features && e.features[0]) {
                     const props = e.features[0].properties;
@@ -655,7 +665,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                     layers: ['clusters']
                 });
                 const clusterId = features?.[0].properties?.cluster_id;
-                const source = map.current?.getSource('corn-heat') as mapboxgl.GeoJSONSource;
+                const source = map.current?.getSource('market-heat') as mapboxgl.GeoJSONSource;
 
                 if (clusterId && source) {
                     source.getClusterExpansionZoom(clusterId, (err, zoom) => {
@@ -703,10 +713,10 @@ export const CornMap: React.FC<CornMapProps> = ({
                 if (map.current) map.current.getCanvas().style.cursor = '';
             });
 
-            map.current?.on('mouseenter', 'corn-point-layer', () => {
+            map.current?.on('mouseenter', 'market-point-layer', () => {
                 if (map.current) map.current.getCanvas().style.cursor = 'pointer';
             });
-            map.current?.on('mouseleave', 'corn-point-layer', () => {
+            map.current?.on('mouseleave', 'market-point-layer', () => {
                 if (map.current) map.current.getCanvas().style.cursor = '';
             });
 
@@ -722,6 +732,63 @@ export const CornMap: React.FC<CornMapProps> = ({
             });
             map.current?.on('mouseleave', 'bnsf-opp-clusters', () => {
                 if (map.current) map.current.getCanvas().style.cursor = '';
+            });
+
+            // ── Drought Layer: Hover Tooltip ────────────────────────
+            const droughtPopup = new mapboxgl.Popup({
+                closeButton: false,
+                closeOnClick: false,
+                className: 'drought-tooltip',
+                maxWidth: '240px',
+                offset: 10,
+            });
+
+            map.current?.on('mouseenter', 'drought-fill', (e) => {
+                if (!map.current) return;
+                map.current.getCanvas().style.cursor = 'crosshair';
+
+                const stateName = e.features?.[0]?.properties?.STATE_NAME;
+                if (!stateName) return;
+
+                const stateCode = STATE_NAME_TO_CODE[stateName];
+                const drought = stateCode ? droughtDataRef.current.get(stateCode) : null;
+                if (!drought || drought.severity === 'none') return;
+
+                const emoji = drought.severity === 'exceptional' || drought.severity === 'extreme' ? '🔴'
+                    : drought.severity === 'severe' ? '🟠'
+                        : drought.severity === 'moderate' ? '🟡' : '⚪';
+
+                droughtPopup
+                    .setLngLat(e.lngLat)
+                    .setHTML(`
+                        <div style="font-family: system-ui, -apple-system, sans-serif; padding: 6px 0;">
+                            <div style="font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 4px;">
+                                ${emoji} ${stateName}
+                            </div>
+                            <div style="font-size: 11px; color: #a1a1aa; margin-bottom: 6px;">
+                                ${drought.severity.charAt(0).toUpperCase() + drought.severity.slice(1)} Drought
+                            </div>
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; font-size: 9px; font-family: monospace;">
+                                <div style="text-align: center; padding: 2px; background: rgba(250,204,21,0.2); border-radius: 3px; color: #fde047;">D0<br/>${drought.d0.toFixed(0)}%</div>
+                                <div style="text-align: center; padding: 2px; background: rgba(251,191,36,0.2); border-radius: 3px; color: #fbbf24;">D1<br/>${drought.d1.toFixed(0)}%</div>
+                                <div style="text-align: center; padding: 2px; background: rgba(251,146,60,0.2); border-radius: 3px; color: #fb923c;">D2<br/>${drought.d2.toFixed(0)}%</div>
+                                <div style="text-align: center; padding: 2px; background: rgba(239,68,68,0.2); border-radius: 3px; color: #ef4444;">D3<br/>${drought.d3.toFixed(0)}%</div>
+                                <div style="text-align: center; padding: 2px; background: rgba(127,29,29,0.3); border-radius: 3px; color: #fca5a5;">D4<br/>${drought.d4.toFixed(0)}%</div>
+                            </div>
+                        </div>
+                    `)
+                    .addTo(map.current);
+            });
+
+            map.current?.on('mousemove', 'drought-fill', (e) => {
+                if (droughtPopup.isOpen()) {
+                    droughtPopup.setLngLat(e.lngLat);
+                }
+            });
+
+            map.current?.on('mouseleave', 'drought-fill', () => {
+                if (map.current) map.current.getCanvas().style.cursor = '';
+                droughtPopup.remove();
             });
 
             // Targeted Animation Loop (State Pulse & Rail Flow)
@@ -742,9 +809,9 @@ export const CornMap: React.FC<CornMapProps> = ({
                 }
 
                 // Small targeted pulse for Potential Buyers
-                if (map.current?.getLayer('corn-point-pulse')) {
+                if (map.current?.getLayer('market-point-pulse')) {
                     const buyerPulse = 0.1 + (intensity * 0.4); // 0.1 -> 0.5 opacity
-                    map.current.setPaintProperty('corn-point-pulse', 'circle-opacity', buyerPulse);
+                    map.current.setPaintProperty('market-point-pulse', 'circle-opacity', buyerPulse);
                 }
 
                 // Pulse for BNSF Transloaders
@@ -759,12 +826,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                     map.current.setPaintProperty('bnsf-opp-pulse', 'circle-opacity', oppPulse);
                 }
 
-                // 2. Rail Flow Animation (Pulse)
-                if (map.current?.getLayer('rail-flow')) {
-                    // Pulsing opacity to simulate active data flow
-                    const flowPulse = (Math.sin(t * 3) + 1) / 2;
-                    map.current.setPaintProperty('rail-flow', 'line-opacity', 0.2 + (flowPulse * 0.4));
-                }
+                // 2. Removed Flow Animation for cleanup
 
                 requestAnimationFrame(animate);
             };
@@ -792,9 +854,9 @@ export const CornMap: React.FC<CornMapProps> = ({
             }
         };
 
-        setVisibility('corn-heat-layer', showHeatmap);
-        setVisibility('corn-point-layer', showHeatmap);
-        setVisibility('corn-point-pulse', showHeatmap);
+        setVisibility('market-heat-layer', showHeatmap);
+        setVisibility('market-point-layer', showHeatmap);
+        setVisibility('market-point-pulse', showHeatmap);
 
         // Toggle all rail-related layers (premium + fallback)
         ['rail-layer', 'rail-glow', 'rail-core', 'rail-flow'].forEach(layer => {
@@ -803,6 +865,10 @@ export const CornMap: React.FC<CornMapProps> = ({
 
         setVisibility('transloader-layer', !!showTransloaders);
         setVisibility('transloader-pulse', !!showTransloaders);
+
+        // Drought Monitor layer toggle
+        setVisibility('drought-fill', !!showDrought);
+        setVisibility('drought-border', !!showDrought);
 
         if (bnsfLayersLoaded) {
             setVisibility('bnsf-opp-layer', !!showBnsfOpportunities);
@@ -816,7 +882,7 @@ export const CornMap: React.FC<CornMapProps> = ({
             map.current.setLayoutProperty('state-border', 'visibility', 'visible');
         }
 
-    }, [showHeatmap, showRail, showTransloaders, showBnsfOpportunities, styleLoaded, bnsfLayersLoaded]);
+    }, [showHeatmap, showRail, showTransloaders, showBnsfOpportunities, showDrought, styleLoaded, bnsfLayersLoaded]);
 
     // Update Highlight Layer based on Top States
     useEffect(() => {
@@ -932,10 +998,85 @@ export const CornMap: React.FC<CornMapProps> = ({
 
     }, [stateMetrics, styleLoaded]);
 
+    // ── Drought Monitor: Fetch data & color states ────────────────
+    useEffect(() => {
+        if (!styleLoaded) return;
+        fetchStateDroughtData()
+            .then(data => setDroughtData(data))
+            .catch(err => console.error('[CornMap] Drought fetch failed:', err));
+    }, [styleLoaded]);
+
+    // Apply drought colors to the drought fill layer when data arrives or showDrought changes
+    useEffect(() => {
+        if (!map.current || !styleLoaded || droughtData.size === 0) return;
+
+        const STATE_NAME_TO_CODE_ENTRIES = Object.entries(STATE_NAME_TO_CODE);
+
+        // Build data-driven fill-color and fill-opacity expressions
+        const fillColorExpr: any[] = ['match', ['get', 'STATE_NAME']];
+        const fillOpacityExpr: any[] = ['match', ['get', 'STATE_NAME']];
+        const borderColorExpr: any[] = ['match', ['get', 'STATE_NAME']];
+        const borderOpacityExpr: any[] = ['match', ['get', 'STATE_NAME']];
+
+        let hasData = false;
+
+        for (const [stateName, stateCode] of STATE_NAME_TO_CODE_ENTRIES) {
+            const drought = droughtData.get(stateCode);
+            if (!drought) continue;
+
+            // Only color states that have some drought
+            if (drought.severity === 'none') continue;
+
+            hasData = true;
+
+            // Use the severity color with graduated opacity for dark theme
+            let fillColor: string;
+            let opacity: number;
+            let borderColor: string;
+
+            switch (drought.severity) {
+                case 'exceptional':
+                    fillColor = '#730000'; opacity = 0.35; borderColor = '#990000'; break;
+                case 'extreme':
+                    fillColor = '#E60000'; opacity = 0.28; borderColor = '#FF3333'; break;
+                case 'severe':
+                    fillColor = '#FFAA00'; opacity = 0.22; borderColor = '#FFCC44'; break;
+                case 'moderate':
+                    fillColor = '#FCD37F'; opacity = 0.18; borderColor = '#FFE0A0'; break;
+                case 'abnormal':
+                    fillColor = '#FFFF00'; opacity = 0.12; borderColor = '#FFFF66'; break;
+                default:
+                    fillColor = '#000000'; opacity = 0; borderColor = '#000000'; break;
+            }
+
+            fillColorExpr.push(stateName, fillColor);
+            fillOpacityExpr.push(stateName, opacity);
+            borderColorExpr.push(stateName, borderColor);
+            borderOpacityExpr.push(stateName, 0.5);
+        }
+
+        // Default fallback for states with no drought
+        fillColorExpr.push('#000000');
+        fillOpacityExpr.push(0);
+        borderColorExpr.push('#000000');
+        borderOpacityExpr.push(0);
+
+        if (hasData && map.current.getLayer('drought-fill')) {
+            map.current.setPaintProperty('drought-fill', 'fill-color', fillColorExpr as any);
+            map.current.setPaintProperty('drought-fill', 'fill-opacity', fillOpacityExpr as any);
+        }
+
+        if (hasData && map.current.getLayer('drought-border')) {
+            map.current.setPaintProperty('drought-border', 'line-color', borderColorExpr as any);
+            map.current.setPaintProperty('drought-border', 'line-opacity', borderOpacityExpr as any);
+        }
+
+    }, [droughtData, showDrought, styleLoaded]);
+
     // Update heatmap data
     useEffect(() => {
         if (!map.current || !styleLoaded) return;
-        const source = map.current.getSource('corn-heat') as mapboxgl.GeoJSONSource;
+        const source = map.current.getSource('market-heat') as mapboxgl.GeoJSONSource;
         if (source) {
             let features: any[] = [];
 
@@ -945,6 +1086,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                     properties: {
                         weight: (b.basis ?? 0) * 10,
                         isOpportunity: (b.basis ?? 0) > 0.2 || (b.netPrice || 0) > 4.5,
+                        railScore: b.railConfidence ?? b.railEvidence?.score ?? 0,
                         ...b
                     },
                     geometry: { type: 'Point', coordinates: [b.lng, b.lat] }
@@ -954,6 +1096,7 @@ export const CornMap: React.FC<CornMapProps> = ({
                     type: 'Feature',
                     properties: {
                         weight: p.cornPrice,
+                        railScore: (p as any).railConfidence ?? (p as any).railEvidence?.score ?? 0,
                         ...p
                     },
                     geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
@@ -991,31 +1134,30 @@ export const CornMap: React.FC<CornMapProps> = ({
         if (!map.current || !map.current.isStyleLoaded()) return;
 
         if (hoveredRegionId) {
-            map.current.setPaintProperty('corn-point-layer', 'circle-radius', [
+            map.current.setPaintProperty('market-point-layer', 'circle-radius', [
                 'case',
                 ['==', ['get', 'id'], hoveredRegionId],
                 20,
                 ['interpolate', ['linear'], ['zoom'], 4, 4, 10, 10]
             ]);
-            map.current.setPaintProperty('corn-point-layer', 'circle-color', [
+            map.current.setPaintProperty('market-point-layer', 'circle-color', [
                 'case',
                 ['==', ['get', 'id'], hoveredRegionId],
                 '#22c55e',
-                ['case', ['boolean', ['get', 'isOpportunity'], false], '#22d3ee', '#64748b']
+                ['case', ['>', ['coalesce', ['get', 'railScore'], 0], 50], '#00E676', '#FFD600']
             ]);
         } else {
-            map.current.setPaintProperty('corn-point-layer', 'circle-radius', [
+            map.current.setPaintProperty('market-point-layer', 'circle-radius', [
                 'interpolate',
                 ['linear'],
                 ['zoom'],
                 4, 4,
                 10, 10
             ]);
-            map.current.setPaintProperty('corn-point-layer', 'circle-color', [
+            map.current.setPaintProperty('market-point-layer', 'circle-color', [
                 'case',
-                ['boolean', ['get', 'isOpportunity'], false],
-                '#22d3ee',
-                '#64748b'
+                ['>', ['coalesce', ['get', 'railScore'], 0], 50], '#00E676',
+                '#FFD600'
             ]);
         }
     }, [hoveredRegionId]);

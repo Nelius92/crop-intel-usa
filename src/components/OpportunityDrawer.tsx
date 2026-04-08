@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown, User, Clock, Sparkles, Loader2 } from 'lucide-react';
+import { X, Phone, Navigation, Share2, Train, Globe, ChevronDown, User, Clock, Sparkles, Loader2, Droplets } from 'lucide-react';
 import { HeatmapPoint, Buyer, Transloader, isDataStale, CropType } from '../types';
 import { BNSFOpportunity } from '../services/bnsfScraperService';
 import { SourceLabel, formatTimeAgo } from './TrustBadge';
@@ -8,6 +8,7 @@ import { getCorridorName } from '../services/railConfidenceService';
 import { marketDataService } from '../services/marketDataService';
 import { getCropPriceUnit } from '../services/bnsfService';
 import { calculateBuyerIntelScore, fetchBuyerExplanation } from '../services/buyerIntelService';
+import { getDroughtForState, StateDrought, severityEmoji, severityLabel } from '../services/droughtService';
 
 interface OpportunityDrawerProps {
     item: HeatmapPoint | Buyer | Transloader | BNSFOpportunity | null;
@@ -22,6 +23,7 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
     const [showIntel, setShowIntel] = useState(false);
     const [intelExplanation, setIntelExplanation] = useState<string | null>(null);
     const [loadingExplanation, setLoadingExplanation] = useState(false);
+    const [droughtInfo, setDroughtInfo] = useState<StateDrought | null>(null);
 
     // Reset intel state when switching between buyers
     useEffect(() => {
@@ -29,6 +31,14 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
         setIntelExplanation(null);
         setLoadingExplanation(false);
         setShowExplain(false);
+        setDroughtInfo(null);
+
+        // Fetch drought data for the buyer's state
+        if (item && isBuyer(item) && item.state) {
+            getDroughtForState(item.state)
+                .then(data => setDroughtInfo(data))
+                .catch(() => setDroughtInfo(null));
+        }
     }, [item]);
 
     if (!item) return null;
@@ -37,13 +47,13 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
         <AnimatePresence>
             {item && (
                 <motion.div
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none px-2 sm:px-4 pb-2 sm:pb-4"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-2 sm:px-6 py-20 sm:py-24"
                 >
-                    <div className="w-full max-w-lg bg-[#120202]/90 backdrop-blur-xl border border-white/10 shadow-neon-red rounded-2xl sm:rounded-3xl overflow-hidden pointer-events-auto ring-1 ring-white/5 max-h-[85vh] flex flex-col">
+                    <div className="w-full max-w-lg bg-[#120202]/90 backdrop-blur-xl border border-white/10 shadow-neon-red rounded-2xl sm:rounded-3xl overflow-hidden pointer-events-auto ring-1 ring-white/5 max-h-full flex flex-col">
 
                         {/* Header Section */}
                         <div className="relative p-4 sm:p-6 pb-2">
@@ -146,6 +156,62 @@ export const OpportunityDrawer: React.FC<OpportunityDrawerProps> = ({ item, onCl
                                     <DataFreshnessBar provenance={item.provenance} />
                                 )}
                             </div>
+
+                            {/* ─── Drought Monitor: Supply Intelligence ─── */}
+                            {isBuyer(item) && droughtInfo && (
+                                <div className="p-3 bg-black/30 rounded-xl border border-white/5">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Droplets size={14} className="text-red-400" />
+                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                                            Supply Intelligence — {droughtInfo.stateName}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <span className="text-lg">{severityEmoji(droughtInfo.severity)}</span>
+                                        <div>
+                                            <p className="text-sm font-semibold text-white">
+                                                {severityLabel(droughtInfo.severity)}
+                                            </p>
+                                            <p className="text-[11px] text-zinc-400">
+                                                Week of {droughtInfo.weekOf}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {droughtInfo.severity !== 'none' && (
+                                        <>
+                                            <div className="grid grid-cols-5 gap-1 mb-2">
+                                                {[
+                                                    { label: 'D0', value: droughtInfo.d0, color: 'bg-yellow-400/30 text-yellow-300' },
+                                                    { label: 'D1', value: droughtInfo.d1, color: 'bg-amber-400/30 text-amber-300' },
+                                                    { label: 'D2', value: droughtInfo.d2, color: 'bg-orange-400/30 text-orange-300' },
+                                                    { label: 'D3', value: droughtInfo.d3, color: 'bg-red-500/30 text-red-300' },
+                                                    { label: 'D4', value: droughtInfo.d4, color: 'bg-red-800/30 text-red-200' },
+                                                ].map(d => (
+                                                    <div key={d.label} className={`text-center rounded px-1 py-0.5 text-[10px] font-mono ${d.value > 0 ? d.color : 'bg-zinc-800/50 text-zinc-600'}`}>
+                                                        <div className="font-bold">{d.label}</div>
+                                                        <div>{d.value.toFixed(0)}%</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p className="text-[11px] text-zinc-400 italic">
+                                                {droughtInfo.d2 > 20
+                                                    ? '⚡ Local supply stressed — buyer may bid aggressively'
+                                                    : droughtInfo.d1 > 25
+                                                        ? '📊 Developing drought — monitor basis for tightening'
+                                                        : '📋 Minor dryness — limited supply impact expected'}
+                                            </p>
+                                        </>
+                                    )}
+                                    {droughtInfo.severity === 'none' && (
+                                        <p className="text-[11px] text-zinc-500">
+                                            No drought conditions in {droughtInfo.stateName}. Local supply is healthy.
+                                        </p>
+                                    )}
+                                    <p className="text-[9px] text-zinc-600 mt-1">
+                                        Source: U.S. Drought Monitor (USDA/NOAA/UNL)
+                                    </p>
+                                </div>
+                            )}
 
                             {/* ─── Trust Layer: Explain This Calculation ─── */}
                             {isBuyer(item) && item.provenance && (

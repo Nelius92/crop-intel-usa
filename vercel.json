@@ -3,6 +3,10 @@
         {
             "source": "/api/:path*",
             "destination": "https://corn-intel-api-production.up.railway.app/api/:path*"
+        },
+        {
+            "source": "/drought-api/:path*",
+            "destination": "https://usdmdataservices.unl.edu/api/:path*"
         }
     ]
 }

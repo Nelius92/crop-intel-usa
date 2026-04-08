@@ -12,6 +12,7 @@ import { enrichBuyersWithRailConfidence } from './railConfidenceService';
 import { TRANSLOADERS } from './transloaderService';
 import { cacheService, CACHE_TTL } from './cacheService';
 import { apiGetJson } from './apiClient';
+import { normalizeFreightData } from '../utils/freightNormalizer';
 
 // ── Live Bid Ingestion ──────────────────────────────────────────
 // Loads scraped bids from morning scan (live_bids.json)
@@ -414,9 +415,10 @@ export const fetchRealBuyersFromGoogle = async (
         const rawFreightPerBushel = freightInfo.ratePerBushel;
         let newFreightCost = convertFreightToCropUnit(rawFreightPerBushel, selectedCrop);
 
-        // ── Freight Normalizer Guard (DTO contract) ──────────────────────
-        // Maximum sane freight per unit — anything above this is a raw
-        // per-car or per-ton rate that leaked through without conversion.
+        // ── Freight Normalizer Middleware (DTO contract) ──────────────────────
+        // Intercept and normalize any raw per-car or per-ton rates that leaked through
+        newFreightCost = normalizeFreightData(newFreightCost, freightInfo.mode === 'rail' ? undefined : undefined);
+
         const MAX_FREIGHT: Record<string, number> = {
             'Yellow Corn': 5.00,      // Max ~$5/bu (CA shuttle = ~$1.60)
             'White Corn': 5.00,
@@ -424,10 +426,12 @@ export const fetchRealBuyersFromGoogle = async (
             'Wheat': 5.00,
             'Sunflowers': 20.00,      // $/cwt — higher nominal due to unit
         };
+
+        // Optional specific clamp per crop if we really need it, but normalizeFreightData handles the huge anomalies:
         const maxFreight = MAX_FREIGHT[selectedCrop] || 5.00;
         if (newFreightCost > maxFreight) {
             if (import.meta.env.DEV) {
-                console.warn(`[FreightGuard] ${buyer.name}: freight $${newFreightCost.toFixed(2)} exceeds max $${maxFreight} for ${selectedCrop} — clamping. Raw mode: ${freightInfo.mode}`);
+                console.warn(`[FreightGuard] ${buyer.name}: freight $${newFreightCost.toFixed(2)} still exceeds max $${maxFreight} for ${selectedCrop} after normalization.`);
             }
             newFreightCost = maxFreight;
         }

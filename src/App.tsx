@@ -46,15 +46,15 @@ function App() {
                 </div>
             </div>
 
-            {/* Main Content — keep-alive: all pages stay mounted, CSS toggles visibility */}
-            <main className="w-full h-full">
-                <div className="w-full h-full" style={{ display: activeTab === 'map' ? 'contents' : 'none' }}>
+            {/* Main Content — keep-alive: all pages stay mounted, visibility mapped to opacity/z-index to preserve WebGL Context */}
+            <main className="w-full h-full relative">
+                <div className="absolute inset-0 transition-opacity bg-corn-base" style={{ opacity: activeTab === 'map' ? 1 : 0, pointerEvents: activeTab === 'map' ? 'auto' : 'none', zIndex: activeTab === 'map' ? 10 : 0 }}>
                     <HeatMapPage selectedCrop={selectedCrop} isVisible={activeTab === 'map'} />
                 </div>
-                <div className="w-full h-full" style={{ display: activeTab === 'buyers' ? 'contents' : 'none' }}>
+                <div className="absolute inset-0 transition-opacity bg-corn-base" style={{ opacity: activeTab === 'buyers' ? 1 : 0, pointerEvents: activeTab === 'buyers' ? 'auto' : 'none', zIndex: activeTab === 'buyers' ? 10 : 0 }}>
                     <BuyersPage selectedCrop={selectedCrop} />
                 </div>
-                <div className="w-full h-full" style={{ display: activeTab === 'settings' ? 'contents' : 'none' }}>
+                <div className="absolute inset-0 transition-opacity bg-corn-base" style={{ opacity: activeTab === 'settings' ? 1 : 0, pointerEvents: activeTab === 'settings' ? 'auto' : 'none', zIndex: activeTab === 'settings' ? 10 : 0 }}>
                     <SettingsPage />
                 </div>
             </main>

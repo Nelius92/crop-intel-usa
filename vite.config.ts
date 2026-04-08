@@ -16,6 +16,12 @@ export default defineConfig({
         target: 'https://corn-intel-api-production.up.railway.app',
         changeOrigin: true,
         secure: false,
+      },
+      '/drought-api': {
+        target: 'https://usdmdataservices.unl.edu/api',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/drought-api/, ''),
       }
     }
   }
