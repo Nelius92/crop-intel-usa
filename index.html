@@ -4,11 +4,102 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Crop Intel USA</title>
+
+    <!-- SEO: Primary Meta -->
+    <title>Crop Intel USA — Commodity Intelligence & Rail Logistics Platform</title>
+    <meta name="description" content="Crop Intel is an enterprise commodity intelligence platform for agricultural markets. Real-time USDA cash bids, BNSF rail freight optimization, Net Delivered Value analysis, sunflower/corn/soybean market data, and AI-powered buyer matching across North Dakota, Minnesota, and the BNSF corridor." />
+    <meta name="keywords" content="Crop Intel, commodity intelligence, BNSF rail freight, USDA cash bids, grain market, sunflower oilseed, corn prices, soybean futures, North Dakota agriculture, rail logistics, net delivered value, Campbell MN" />
+    <meta name="author" content="Crop Intel" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph (Facebook, LinkedIn, Gemini, Slack link previews) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Crop Intel USA — Commodity Intelligence Platform" />
+    <meta property="og:description" content="Enterprise-grade grain market intelligence. Real-time USDA cash bids, BNSF rail rate optimization, Net Delivered Value analysis, and AI-driven buyer recommendations. Serving the Northern Plains grain corridor." />
+    <meta property="og:site_name" content="Crop Intel USA" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Crop Intel USA — Commodity Intelligence Platform" />
+    <meta name="twitter:description" content="Real-time USDA cash bids, BNSF rail freight optimization, and AI-powered buyer matching for the agricultural commodities market." />
+
+    <!-- Structured Data: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Crop Intel USA",
+      "description": "Enterprise commodity intelligence platform providing real-time grain market data, BNSF rail freight optimization, USDA cash bid analysis, and AI-powered buyer matching for agricultural commodities including corn, soybeans, sunflowers, and wheat.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Real-time USDA cash bids and futures pricing",
+        "BNSF rail rate calculation (Tariff 4022)",
+        "Net Delivered Value (NDV) analysis",
+        "National price heatmap with Mapbox visualization",
+        "Sunflower Best Lanes (oilseed and confection)",
+        "AI-powered buyer matching and recommendations",
+        "Drought intelligence overlay (USDM)",
+        "Interline tracking bridge (BNSF/RRVW/CPKC)",
+        "One-click automated contract offers",
+        "Rail confidence scoring for 200+ buyers"
+      ]
+    }
+    </script>
+
+    <!-- Mapbox CSS -->
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Fallback for crawlers/bots/AI that cannot execute JavaScript -->
+    <noscript>
+      <div style="max-width: 900px; margin: 40px auto; padding: 20px; font-family: system-ui, sans-serif; color: #e2e8f0; background: #0f172a;">
+        <h1>Crop Intel USA — Commodity Intelligence & Rail Logistics Platform</h1>
+
+        <h2>Platform Overview</h2>
+        <p>Crop Intel is an enterprise-grade commodity intelligence platform serving the Northern Plains grain corridor. It provides real-time market data, freight optimization, and AI-driven insights for agricultural commodity trading.</p>
+
+        <h2>Core Features</h2>
+        <ul>
+          <li><strong>National Price Heatmap:</strong> Interactive Mapbox-powered visualization of USDA cash bids across the entire U.S. grain market. Covers Yellow Corn, White Corn, Soybeans, Wheat, and Sunflowers.</li>
+          <li><strong>BNSF Rail Rate Engine:</strong> Integrated with BNSF Tariff 4022 via mTLS API. Calculates real rail freight from Campbell, MN to over 200 buyer destinations.</li>
+          <li><strong>Net Delivered Value (NDV):</strong> Cash Bid minus Freight Cost. The true profitability metric for each buyer lane, computed in real-time.</li>
+          <li><strong>Sunflower Best Lanes:</strong> Dedicated oilseed and confection sunflower market with ADM Enderlin, Cargill West Fargo, Red River Commodities, and CHS Fargo.</li>
+          <li><strong>Interline Tracking Bridge:</strong> BNSF API provides tracking to Breckenridge interchange, then Commtrex/CPKC ShipOnline bridges visibility for RRVW interline moves.</li>
+          <li><strong>Automated Offers:</strong> Bushel-style one-click contract locking with 60-second countdown timer for premium capture.</li>
+          <li><strong>Drought Intelligence:</strong> U.S. Drought Monitor (USDM) overlay showing D0-D4 drought severity on the commodity map.</li>
+          <li><strong>AI Market Analysis:</strong> Google Gemini-powered buyer rankings, morning market scans, and opportunity identification.</li>
+        </ul>
+
+        <h2>Market Coverage</h2>
+        <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
+          <tr><th>Commodity</th><th>Top Buyer</th><th>Location</th><th>Bid ($/CWT)</th><th>NDV ($/CWT)</th></tr>
+          <tr><td>High Oleic Sunflower (Oilseed)</td><td>Cargill</td><td>West Fargo, ND</td><td>$23.95</td><td>$22.99</td></tr>
+          <tr><td>High Oleic Sunflower (Oilseed)</td><td>ADM</td><td>Enderlin, ND</td><td>$23.75</td><td>$22.30</td></tr>
+          <tr><td>Confection Sunflower</td><td>Red River Commodities</td><td>Fargo, ND</td><td>$30.00</td><td>$29.04</td></tr>
+          <tr><td>Confection Sunflower</td><td>CHS</td><td>Fargo, ND</td><td>$29.25</td><td>$28.29</td></tr>
+        </table>
+
+        <h2>Rail Logistics</h2>
+        <p>Origin: Campbell, MN (BNSF Station: CAMPB). The platform differentiates between single-line BNSF routes (I=0, e.g., Campbell → West Fargo) and interline moves requiring RRVW hand-off (I=1, e.g., Campbell → Breckenridge → Enderlin). Interline moves incur RRVW switching fees of ~$350/car ($0.28/cwt).</p>
+
+        <h2>Technology Stack</h2>
+        <p>React + TypeScript, Vite, Mapbox GL JS, BNSF mTLS API, Google Gemini AI, USDA Market News API, U.S. Drought Monitor API. Deployed on Vercel with Railway backend.</p>
+
+        <h2>Futures Anchors</h2>
+        <p>Soybean Oil (ZL): 67.75¢/lb | Implied Crush (SOM): 293'2 ¢/bu | Corn (ZC): varies by contract month.</p>
+
+        <p><em>Please enable JavaScript to use the interactive Crop Intel platform.</em></p>
+      </div>
+    </noscript>
   </body>
 </html>
