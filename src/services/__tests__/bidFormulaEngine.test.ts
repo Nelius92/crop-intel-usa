@@ -16,7 +16,7 @@ import {
 /**
  * BID FORMULA ENGINE TEST SUITE
  * 
- * Validates the core mathematical engine of Corn Intel:
+ * Validates the core mathematical engine of Crop Intel:
  *   Cash Bid = Futures + Basis
  *   Net Price = Cash Bid - Freight
  *   Arbitrage = Net via Rail - Local Benchmark Net

@@ -13,7 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://corn-intel-api-production.up.railway.app',
+        target: 'https://crop-intel-api-production.up.railway.app',
         changeOrigin: true,
         secure: false,
       },

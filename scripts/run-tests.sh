@@ -25,7 +25,7 @@ export BNSF_FEATURE_ENABLED="${BNSF_FEATURE_ENABLED:-true}"
 set +a
 
 # Run the test
-echo "🚂 Running Corn Intel Production Tests..."
+echo "🚂 Running Crop Intel Production Tests..."
 echo "Environment loaded from .env and .env.bnsf"
 echo ""
 

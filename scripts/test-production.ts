@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Corn Intel Production Readiness Test Suite
+ * Crop Intel Production Readiness Test Suite
  * 
  * This script performs comprehensive testing to ensure the application is production-ready.
  * 
@@ -250,7 +250,7 @@ async function testBnsfApiCars() {
 // ============================================================================
 
 async function main() {
-    console.log('🚂 Corn Intel Production Readiness Test Suite\n');
+    console.log('🚂 Crop Intel Production Readiness Test Suite\n');
     console.log(`Started: ${new Date().toLocaleString()}\n`);
 
     try {

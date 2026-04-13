@@ -402,7 +402,7 @@ async function scrapeWithFirecrawl(target: { name: string; url: string; crop: st
 async function main() {
     console.log('');
     console.log('╔═══════════════════════════════════════════════════╗');
-    console.log('║     🌾 CORN INTEL — Morning Bid Scan             ║');
+    console.log('║     🌾 CROP INTEL — Morning Bid Scan             ║');
     console.log('║     Finding the best prices in the country       ║');
     console.log('╚═══════════════════════════════════════════════════╝');
     console.log('');

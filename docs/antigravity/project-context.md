@@ -1,7 +1,7 @@
-# Corn Intel — Project Context
+# Crop Intel — Project Context
 
 ## Executive Summary
-- Corn Intel helps Campbell MN farmers find better crop selling opportunities via BNSF rail vs trucking to local buyers
+- Crop Intel helps Campbell MN farmers find better crop selling opportunities via BNSF rail vs trucking to local buyers
 - Core value: net price comparison (Cash Bid - Rail Freight) against local benchmarks per crop
 - Stack: Vite + React 18 + TS + Tailwind frontend, Express + Postgres API backend
 - Deployed: Vercel (frontend) + Railway (API + DB)
@@ -18,12 +18,12 @@
 
 | Field | Value |
 |-------|-------|
-| App name | Corn Intel (corn-intel-usa) |
+| App name | Crop Intel (crop-intel-usa) |
 | Primary stack | Vite + React 18 + TypeScript + Tailwind CSS (frontend), Express.js + PostgreSQL (API) |
 | Package manager | npm 11.6.2 |
 | Runtime | Node.js v24.11.1 |
 | Deployment target | Vercel (frontend), Railway (API + Postgres) |
-| Production URLs | Frontend: https://corn-intel-usa.vercel.app, API: https://corn-intel-api-production.up.railway.app |
+| Production URLs | Frontend: https://crop-intel-usa.vercel.app, API: https://crop-intel-api-production.up.railway.app |
 | Repository | https://github.com/Nelius92/crop-intel-usa |
 
 ## Core User Flows

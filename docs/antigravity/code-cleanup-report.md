@@ -1,4 +1,4 @@
-# Corn Intel — Code Cleanup Report
+# Crop Intel — Code Cleanup Report
 
 ## Executive Summary
 - Eliminated 12 `as any` type casts in `buyersService.ts` by extending interface

@@ -1,5 +1,5 @@
 {
-    "name": "@corn-intel/connectors",
+    "name": "@crop-intel/connectors",
     "version": "1.0.0",
     "private": true,
     "type": "module",

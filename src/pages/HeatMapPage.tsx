@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CornMap } from '../components/CornMap';
 import { MapControls } from '../components/MapControls';
+import { SunflowerLanePanel } from '../components/SunflowerLanePanel';
 import { fetchTransloaders } from '../services/transloaderService';
 import { CropType, HeatmapPoint, Buyer, Transloader } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
@@ -255,6 +256,14 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisibl
             <div className="hidden">
                 {/* MarketIntelPanel moved to right flex stack */}
             </div>
+
+            {/* Sunflower Lane Panel — shows only when Sunflowers crop is selected */}
+            {selectedCrop === 'Sunflowers' && (
+                <SunflowerLanePanel
+                    onLaneSelect={(lane) => console.log('[CropIntel] Lane selected:', lane.id)}
+                    onOfferGenerate={(offer) => console.log('[CropIntel] Offer generated:', offer.laneId, offer.totalContractValue)}
+                />
+            )}
         </div>
     );
 };

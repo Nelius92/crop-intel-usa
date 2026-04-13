@@ -6,7 +6,7 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:4173',
-    'https://corn-intel-usa.vercel.app',
+    'https://crop-intel-usa.vercel.app',
 ].filter(Boolean);
 
 export const corsMiddleware = cors({

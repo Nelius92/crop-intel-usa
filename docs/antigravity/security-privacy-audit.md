@@ -1,4 +1,4 @@
-# Corn Intel — Security & Privacy Audit
+# Crop Intel — Security & Privacy Audit
 
 ## Executive Summary
 - **No authentication** — app is fully open ⚠️

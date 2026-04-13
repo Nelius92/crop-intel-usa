@@ -1,10 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/Users/cornelius/Documents/Corn Intel}"
+REPO_DIR="${REPO_DIR:-/Users/cornelius/Documents/Crop Intel}"
 cd "$REPO_DIR"
 
-echo "Starting Corn Intel stack..."
+echo "Starting Crop Intel stack..."
 /usr/bin/env docker compose up -d --build postgres api frontend
 
 echo "Running seed import..."

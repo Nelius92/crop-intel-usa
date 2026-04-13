@@ -1,4 +1,4 @@
-# Corn Intel — Skills Index
+# Crop Intel — Skills Index
 
 | # | Skill | Slug | Description |
 |---|-------|------|-------------|

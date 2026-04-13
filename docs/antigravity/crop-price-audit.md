@@ -1,4 +1,4 @@
-# Corn Intel — Crop Price Audit
+# Crop Intel — Crop Price Audit
 
 ## Executive Summary
 - Cash bids come from 3 sources: scraped Bushel/Barchart → USDA regional basis fallback → hardcoded defaults

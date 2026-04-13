@@ -14,7 +14,7 @@ description: Daily morning market scan — check USDA prices, find best buyers, 
 - Before making any outreach calls to buyers
 
 ## Pre-requisites
-- API must be live at `https://corn-intel-api-production.up.railway.app`
+- API must be live at `https://crop-intel-api-production.up.railway.app`
 - USDA API key must be configured on Railway (`USDA_API_KEY`)
 - Gemini API key must be configured on Railway (`GEMINI_API_KEY`)
 
@@ -22,7 +22,7 @@ description: Daily morning market scan — check USDA prices, find best buyers, 
 
 ### 1. Check API Health
 ```bash
-curl -s --max-time 10 "https://corn-intel-api-production.up.railway.app/health" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'API: {d.get(\"status\")} | Uptime: {int(d.get(\"uptime\",0))}s')"
+curl -s --max-time 10 "https://crop-intel-api-production.up.railway.app/health" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'API: {d.get(\"status\")} | Uptime: {int(d.get(\"uptime\",0))}s')"
 ```
 
 ### 2. Pull USDA Grain Data for ALL Crops
@@ -30,7 +30,7 @@ Run each crop check individually:
 
 **Corn (ND)**:
 ```bash
-curl -s --max-time 20 "https://corn-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Corn&state=ND" | python3 -c "
+curl -s --max-time 20 "https://crop-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Corn&state=ND" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 s=d.get('data',{}).get('summary',{})
@@ -40,7 +40,7 @@ print(f'CORN | Source: {d.get(\"source\")} | Avg: \${s.get(\"avgPrice\",0):.2f}/
 
 **Soybeans (ND)**:
 ```bash
-curl -s --max-time 20 "https://corn-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Soybeans&state=ND" | python3 -c "
+curl -s --max-time 20 "https://crop-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Soybeans&state=ND" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 s=d.get('data',{}).get('summary',{})
@@ -50,7 +50,7 @@ print(f'SOYBEANS | Source: {d.get(\"source\")} | Avg: \${s.get(\"avgPrice\",0):.
 
 **Wheat (ND)**:
 ```bash
-curl -s --max-time 20 "https://corn-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Wheat&state=ND" | python3 -c "
+curl -s --max-time 20 "https://crop-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Wheat&state=ND" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 s=d.get('data',{}).get('summary',{})
@@ -60,7 +60,7 @@ print(f'WHEAT | Source: {d.get(\"source\")} | Avg: \${s.get(\"avgPrice\",0):.2f}
 
 **Sunflowers**:
 ```bash
-curl -s --max-time 20 "https://corn-intel-api-production.up.railway.app/api/usda/sunflower-report" | python3 -c "
+curl -s --max-time 20 "https://crop-intel-api-production.up.railway.app/api/usda/sunflower-report" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 print(f'SUNFLOWERS | Source: {d.get(\"source\")} | Degraded: {d.get(\"degraded\")}')
@@ -71,7 +71,7 @@ print(f'SUNFLOWERS | Source: {d.get(\"source\")} | Degraded: {d.get(\"degraded\"
 For each crop, pull the buyer network and sort by net price:
 
 ```bash
-curl -s --max-time 15 "https://corn-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn" | python3 -c "
+curl -s --max-time 15 "https://crop-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 buyers=d.get('data',[])
@@ -92,7 +92,7 @@ Repeat for `Soybeans`, `Wheat`, `Sunflowers`.
 For each promising buyer (score > 60), get Gemini explanation:
 
 ```bash
-curl -s --max-time 30 -X POST "https://corn-intel-api-production.up.railway.app/api/ai/buyer-intel" \
+curl -s --max-time 30 -X POST "https://crop-intel-api-production.up.railway.app/api/ai/buyer-intel" \
   -H "Content-Type: application/json" \
   -d '{
     "crop":"Yellow Corn",
@@ -119,7 +119,7 @@ Compile findings into a clear morning briefing:
 - Rail freight updates
 
 ### 6. Live Verification
-Open the app at https://corn-intel-usa.vercel.app/ and verify:
+Open the app at https://crop-intel-usa.vercel.app/ and verify:
 - [ ] Benchmark price matches USDA data
 - [ ] Live Market Quotes show correct basis/cash
 - [ ] Buyer network count matches API response

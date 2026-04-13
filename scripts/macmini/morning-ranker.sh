@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/Users/cornelius/Documents/Corn Intel}"
+REPO_DIR="${REPO_DIR:-/Users/cornelius/Documents/Crop Intel}"
 cd "$REPO_DIR"
 
 LOG_DIR="${LOG_DIR:-$REPO_DIR/logs}"
@@ -20,25 +20,25 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
-VENV_DIR="${VENV_DIR:-$REPO_DIR/.venv-cornintel}"
+VENV_DIR="${VENV_DIR:-$REPO_DIR/.venv-cropintel}"
 PYTHON_BIN="${PYTHON_BIN:-$VENV_DIR/bin/python3}"
 if [[ ! -x "$PYTHON_BIN" ]]; then
   PYTHON_BIN="${PYTHON_BIN_FALLBACK:-/usr/bin/python3}"
 fi
 
-API_BASE_URL="${CORN_INTEL_API_BASE_URL:-http://127.0.0.1}"
-BID_SOURCE_CONFIG="${CORN_INTEL_BID_SOURCE_CONFIG:-$REPO_DIR/python/bid_sources.json}"
-MODEL_COEFFICIENTS_FILE="${CORN_INTEL_MODEL_COEFFICIENTS_FILE:-}"
+API_BASE_URL="${CROP_INTEL_API_BASE_URL:-http://127.0.0.1}"
+BID_SOURCE_CONFIG="${CROP_INTEL_BID_SOURCE_CONFIG:-$REPO_DIR/python/bid_sources.json}"
+MODEL_COEFFICIENTS_FILE="${CROP_INTEL_MODEL_COEFFICIENTS_FILE:-}"
 
 ARGS=(
   "$REPO_DIR/python/morning_ranker.py"
   --database-url "$DATABASE_URL"
   --api-base-url "$API_BASE_URL"
-  --crop "${CORN_INTEL_MORNING_CROP:-Yellow Corn}"
-  --limit "${CORN_INTEL_MORNING_LIMIT:-250}"
-  --top-n "${CORN_INTEL_MORNING_TOP_N:-30}"
-  --top-states "${CORN_INTEL_MORNING_TOP_STATES:-3}"
-  --max-bid-age-hours "${CORN_INTEL_MAX_BID_AGE_HOURS:-36}"
+  --crop "${CROP_INTEL_MORNING_CROP:-Yellow Corn}"
+  --limit "${CROP_INTEL_MORNING_LIMIT:-250}"
+  --top-n "${CROP_INTEL_MORNING_TOP_N:-30}"
+  --top-states "${CROP_INTEL_MORNING_TOP_STATES:-3}"
+  --max-bid-age-hours "${CROP_INTEL_MAX_BID_AGE_HOURS:-36}"
 )
 
 if [[ -f "$BID_SOURCE_CONFIG" ]]; then
@@ -51,7 +51,7 @@ if [[ -n "$MODEL_COEFFICIENTS_FILE" && -f "$MODEL_COEFFICIENTS_FILE" ]]; then
   ARGS+=(--model-coefficients-file "$MODEL_COEFFICIENTS_FILE")
 fi
 
-if [[ "${CORN_INTEL_VERIFIED_ONLY:-1}" == "1" ]]; then
+if [[ "${CROP_INTEL_VERIFIED_ONLY:-1}" == "1" ]]; then
   ARGS+=(--verified-only)
 fi
 

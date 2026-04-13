@@ -1,11 +1,11 @@
 #!/bin/bash
-# Corn Intel Daily Scraper Runner
-# Called by launchd (corn-intel-scraper.plist) at 6:00 AM CT weekdays
+# Crop Intel Daily Scraper Runner
+# Called by launchd (crop-intel-scraper.plist) at 6:00 AM CT weekdays
 #
-# Logs go to /tmp/corn-intel-scraper.log
+# Logs go to /tmp/crop-intel-scraper.log
 
-LOG="/tmp/corn-intel-scraper.log"
-PROJECT="/Users/cornelius/Documents/Corn Intel"
+LOG="/tmp/crop-intel-scraper.log"
+PROJECT="/Users/cornelius/Documents/Crop Intel"
 
 echo "========================================" >> "$LOG"
 echo "Scraper run: $(date)" >> "$LOG"

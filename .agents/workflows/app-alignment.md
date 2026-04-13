@@ -1,10 +1,10 @@
 ---
-description: Corn Intel app alignment - how every feature should work, data flow, and quality standards
+description: Crop Intel app alignment - how every feature should work, data flow, and quality standards
 ---
 
-# Corn Intel — App Alignment Skill
+# Crop Intel — App Alignment Skill
 
-> **This is the single source of truth** for how the Corn Intel app should work.
+> **This is the single source of truth** for how the Crop Intel app should work.
 > Every AI agent working on this project MUST read this before making changes.
 
 ## Mission
@@ -38,8 +38,8 @@ Campbell MN farm with BNSF rail access → find the best corn selling opportunit
 
 ### Key URLs
 - **Local**: http://localhost:5173
-- **Production**: https://corn-intel-usa.vercel.app
-- **API**: https://corn-intel-api-production.up.railway.app
+- **Production**: https://crop-intel-usa.vercel.app
+- **API**: https://crop-intel-api-production.up.railway.app
 - **Repo**: https://github.com/Nelius92/crop-intel-usa
 
 ---

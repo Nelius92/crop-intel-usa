@@ -1,4 +1,4 @@
-# Project Retrospective & Technical Roadmap: Corn Intel
+# Project Retrospective & Technical Roadmap: Crop Intel
 **Phase:** 5 of 6 Complete  
 **Date:** February 2, 2026  
 **Status:** ✅ On Track for Final Delivery  
@@ -6,7 +6,7 @@
 ---
 
 ## 1. Project Vision
-The **Corn Intel** project was initiated to bridge the gap between regional grain markets and national rail logistics. Our goal was to build a high-performance, full-stack intelligence platform that provides grain elevators and farmers with real-time "Net Price" clarity by factoring in complex rail freight costs automatically.
+The **Crop Intel** project was initiated to bridge the gap between regional grain markets and national rail logistics. Our goal was to build a high-performance, full-stack intelligence platform that provides grain elevators and farmers with real-time "Net Price" clarity by factoring in complex rail freight costs automatically.
 
 ---
 
@@ -74,4 +74,4 @@ In 5 weeks, we have moved from a blank slate to a fully functional enterprise-gr
 
 **Prepared By:**  
 *Technical Lead*  
-*Corn Intel Project Team*
+*Crop Intel Project Team*

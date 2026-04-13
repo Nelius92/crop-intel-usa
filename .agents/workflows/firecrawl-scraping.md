@@ -2,7 +2,7 @@
 description: How to use Firecrawl for web scraping with browser rendering, actions, and structured extraction
 ---
 
-# Firecrawl Scraping Guide — Corn Intel App
+# Firecrawl Scraping Guide — Crop Intel App
 
 > Current approach: **Bushel-powered portals only** (Barchart blocked, Browser Sandbox TBD)
 

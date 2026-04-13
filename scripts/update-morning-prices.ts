@@ -8,11 +8,11 @@
  *   npx ts-node scripts/update-morning-prices.ts
  * 
  * Cron (6am CT):
- *   0 6 * * * cd /path/to/corn-intel && npx ts-node scripts/update-morning-prices.ts
+ *   0 6 * * * cd /path/to/crop-intel && npx ts-node scripts/update-morning-prices.ts
  * 
  * For server deployment, add to crontab:
  *   crontab -e
- *   0 6 * * * TZ=America/Chicago /path/to/node /path/to/scripts/update-morning-prices.ts >> /var/log/corn-intel-prices.log 2>&1
+ *   0 6 * * * TZ=America/Chicago /path/to/node /path/to/scripts/update-morning-prices.ts >> /var/log/crop-intel-prices.log 2>&1
  */
 
 import * as fs from 'fs';
@@ -196,7 +196,7 @@ function logPriceHistory(priceUpdate: PriceUpdate): void {
 
 async function main(): Promise<void> {
     console.log('==========================================');
-    console.log('  Corn Intel - Morning Price Update');
+    console.log('  Crop Intel - Morning Price Update');
     console.log(`  ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT`);
     console.log('==========================================\n');
 

@@ -1,4 +1,4 @@
-# Corn Intel — GitHub Readiness Report
+# Crop Intel — GitHub Readiness Report
 
 ## Executive Summary
 - README exists and covers setup, Docker, BNSF smoke test ✅

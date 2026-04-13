@@ -218,7 +218,7 @@ async function scrapeNSAOilseedAverages(): Promise<SunflowerPrice[]> {
 
 async function main() {
     console.log('==============================================');
-    console.log('  🌻 Corn Intel — Sunflower Price Scraper');
+    console.log('  🌻 Crop Intel — Sunflower Price Scraper');
     console.log(`  ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT`);
     console.log('==============================================\n');
 

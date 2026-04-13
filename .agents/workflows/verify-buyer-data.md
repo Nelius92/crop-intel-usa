@@ -10,7 +10,7 @@ Audit the 182+ buyers in the Railway database—check websites are reachable, ph
 ## Quick Audit (API check)
 // turbo
 ```bash
-curl -s 'https://corn-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
+curl -s 'https://crop-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 buyers = d.get('data',[])
@@ -32,7 +32,7 @@ print(f'Unverified: {len(unverified)}')
 For buyers with websites, check the URL responds:
 ```bash
 # Extract websites and check HTTP status
-curl -s 'https://corn-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
+curl -s 'https://crop-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 for b in d['data']:
@@ -48,7 +48,7 @@ done
 ### 2. Phone Number Format
 Check phone numbers are valid US format (10 digits):
 ```bash
-curl -s 'https://corn-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
+curl -s 'https://crop-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
 import sys,json,re
 d=json.load(sys.stdin)
 for b in d['data']:
@@ -63,7 +63,7 @@ for b in d['data']:
 ### 3. Location Spot Check
 Verify lat/lng places the buyer in the correct state:
 ```bash
-curl -s 'https://corn-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
+curl -s 'https://crop-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 for b in d['data'][:10]:

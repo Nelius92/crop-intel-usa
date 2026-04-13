@@ -1,10 +1,10 @@
-# corn-intel-usa
+# crop-intel-usa
 
 Crop intel application that helps farmers find the best basis on corn and other grains, enabling them to ship from their closest transloading rail to the best possible buyers.
 
 ## Local Web App (Mac Mini / Office LAN)
 
-This repo now supports running Corn Intel as a local web app with:
+This repo now supports running Crop Intel as a local web app with:
 - `frontend` (nginx + Vite build)
 - `api` (Express + Postgres-backed buyers/contact directory)
 - `postgres` (local DB)

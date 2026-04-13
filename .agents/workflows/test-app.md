@@ -6,20 +6,20 @@ description: Full app testing workflow - verify all features work correctly
 
 ## Prerequisites
 - Dev server running: `npm run dev` → http://localhost:5173
-- Railway backend accessible: https://corn-intel-api-production.up.railway.app
-- Production app: https://corn-intel-usa.vercel.app
+- Railway backend accessible: https://crop-intel-api-production.up.railway.app
+- Production app: https://crop-intel-usa.vercel.app
 
 ## Quick Smoke Test
 // turbo-all
 
 1. Verify Railway API responds:
 ```bash
-curl -s 'https://corn-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'OK: {len(d[\"data\"])} buyers')"
+curl -s 'https://crop-intel-api-production.up.railway.app/api/buyers?scope=all&crop=Yellow%20Corn' | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'OK: {len(d[\"data\"])} buyers')"
 ```
 
 2. Verify USDA data is LIVE (not fallback):
 ```bash
-curl -s --max-time 20 'https://corn-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Corn&state=ND' | python3 -c "import json,sys; d=json.load(sys.stdin); s=d.get('data',{}).get('summary',{}); print(f'USDA: Source={d.get(\"source\")} Price=\${s.get(\"avgPrice\",0):.2f}/bu Bids={s.get(\"bidCount\",0)}')"
+curl -s --max-time 20 'https://crop-intel-api-production.up.railway.app/api/usda/grain-report?commodity=Corn&state=ND' | python3 -c "import json,sys; d=json.load(sys.stdin); s=d.get('data',{}).get('summary',{}); print(f'USDA: Source={d.get(\"source\")} Price=\${s.get(\"avgPrice\",0):.2f}/bu Bids={s.get(\"bidCount\",0)}')"
 ```
 
 3. Run test suite:
@@ -41,7 +41,7 @@ cd /Users/cornelius/Documents/Corn\ Intel && npm test 2>&1 | tail -5
 
 ### AI Buyer Intel (POST)
 ```bash
-curl -s --max-time 30 -X POST "https://corn-intel-api-production.up.railway.app/api/ai/buyer-intel" \
+curl -s --max-time 30 -X POST "https://crop-intel-api-production.up.railway.app/api/ai/buyer-intel" \
   -H "Content-Type: application/json" \
   -d '{"crop":"Yellow Corn","buyerData":{"name":"Dakota Spirit AgEnergy","type":"ethanol","city":"Spiritwood","state":"ND","netPrice":3.55,"benchmarkPrice":3.51,"railConfidence":50,"hasPhone":true,"freightCost":-0.15},"withExplanation":true}'
 ```
@@ -119,7 +119,7 @@ cd /Users/cornelius/Documents/Corn\ Intel && npm test 2>&1
 Expected: 130+ tests passing across 6 suites
 
 ## Live Production Check
-Open https://corn-intel-usa.vercel.app/ in browser and:
+Open https://crop-intel-usa.vercel.app/ in browser and:
 1. Verify Yellow Corn loads with 182 buyers
 2. Click a buyer → check drawer data matches table
 3. Switch to Soybeans → verify different buyers load

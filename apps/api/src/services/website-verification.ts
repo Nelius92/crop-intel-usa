@@ -40,7 +40,7 @@ export async function verifyWebsiteForBuyer(buyerName: string, websiteUrl: strin
         const response = await fetch(`https://${domain}`, {
             signal: AbortSignal.timeout(8_000),
             headers: {
-                'User-Agent': 'CornIntelBuyerSync/1.0 (+local)',
+                'User-Agent': 'CropIntelBuyerSync/1.0 (+local)',
             },
             redirect: 'follow',
         });

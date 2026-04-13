@@ -144,7 +144,7 @@ async function scrapeBushelPortal(portal: BushelPortal): Promise<ScrapedBid[]> {
 
 async function main() {
     console.log('==============================================');
-    console.log('  🌽 Corn Intel — Live Cash Bid Scraper');
+    console.log('  🌽 Crop Intel — Live Cash Bid Scraper');
     console.log(`  ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT`);
     console.log('==============================================\n');
 

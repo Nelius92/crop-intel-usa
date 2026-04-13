@@ -1,4 +1,4 @@
-# Corn Intel — App Architecture Audit
+# Crop Intel — App Architecture Audit
 
 ## Executive Summary
 - Monorepo with frontend (`src/`) and API backend (`apps/api/`)
@@ -19,7 +19,7 @@
 ## Project Structure
 
 ```
-corn-intel-usa/
+crop-intel-usa/
 ├── src/                          # Frontend (Vite + React)
 │   ├── App.tsx                   # Root: tab routing (map/buyers/settings)
 │   ├── main.tsx                  # Entry point

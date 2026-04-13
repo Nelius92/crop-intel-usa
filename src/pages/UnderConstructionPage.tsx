@@ -107,7 +107,7 @@ export const UnderConstructionPage: React.FC = () => {
 
                 {/* Footer */}
                 <div className="mt-12 text-center text-gray-500 text-sm">
-                    <p>&copy; {new Date().getFullYear()} Corn Intel USA. All rights reserved.</p>
+                    <p>&copy; {new Date().getFullYear()} Crop Intel USA. All rights reserved.</p>
                 </div>
             </div>
         </div>

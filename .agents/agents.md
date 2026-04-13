@@ -1,4 +1,4 @@
-# Corn Intel — Agent Configuration
+# Crop Intel — Agent Configuration
 
 ## Skills
 This repo ships 8 reusable skills for autonomous engineering:

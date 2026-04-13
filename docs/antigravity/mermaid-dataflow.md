@@ -1,4 +1,4 @@
-# Corn Intel — Data Flow Diagrams
+# Crop Intel — Data Flow Diagrams
 
 ## 1. Top-Level Architecture
 

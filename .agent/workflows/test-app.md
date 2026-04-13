@@ -4,7 +4,7 @@ description: Full app testing workflow - verify all features work correctly
 
 # Test App Workflow
 
-Complete testing checklist for CornIntel app before production use.
+Complete testing checklist for CropIntel app before production use.
 
 ## Prerequisites
 ```bash

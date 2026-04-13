@@ -22,11 +22,11 @@ function App() {
         // Check URL parameter: ?dev=true
         const params = new URLSearchParams(window.location.search);
         if (params.get('dev') === 'true') {
-            localStorage.setItem('corn_intel_dev_mode', 'true');
+            localStorage.setItem('crop_intel_dev_mode', 'true');
             return true;
         }
         // Check localStorage
-        return localStorage.getItem('corn_intel_dev_mode') === 'true';
+        return localStorage.getItem('crop_intel_dev_mode') === 'true';
     });
 
     if (SHOW_UNDER_CONSTRUCTION && !isDevMode) {

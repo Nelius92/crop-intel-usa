@@ -1,4 +1,4 @@
-# Corn Intel — Assumption Challenge Matrix
+# Crop Intel — Assumption Challenge Matrix
 
 ## Executive Summary
 - Product purpose confirmed by owner: operational tool for Campbell MN area farmers

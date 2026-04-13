@@ -1,4 +1,4 @@
-# Corn Intel — Functional Validation Report
+# Crop Intel — Functional Validation Report
 
 ## Executive Summary
 - **Tests**: 111/111 passing (6 suites) ✅

@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/Users/cornelius/Documents/Corn Intel}"
+REPO_DIR="${REPO_DIR:-/Users/cornelius/Documents/Crop Intel}"
 cd "$REPO_DIR"
 
 /usr/bin/env docker compose up -d postgres api frontend

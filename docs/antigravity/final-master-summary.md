@@ -1,4 +1,4 @@
-# Corn Intel — Final Master Summary
+# Crop Intel — Final Master Summary
 
 ## Mission Complete
 

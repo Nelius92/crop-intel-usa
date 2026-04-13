@@ -1,5 +1,5 @@
 /**
- * Drought Monitor Service — Corn Intel
+ * Drought Monitor Service — Crop Intel
  *
  * Fetches live drought severity data from the free U.S. Drought Monitor REST API.
  * Data updates every Thursday morning. We cache in-memory for 24 hours.

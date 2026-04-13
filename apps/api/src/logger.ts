@@ -7,7 +7,7 @@ export const logger = winston.createLogger({
         winston.format.errors({ stack: true }),
         winston.format.json()
     ),
-    defaultMeta: { service: 'corn-intel-api' },
+    defaultMeta: { service: 'crop-intel-api' },
     transports: [
         new winston.transports.Console({
             format: winston.format.combine(

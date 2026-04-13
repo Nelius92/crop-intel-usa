@@ -157,7 +157,7 @@ function buildMarketIntel(crop: CropType, buyers: any[]): string {
         .map(([state]) => state)
         .join(', ');
 
-    return `**${crop} Market Update: Basis Opportunities by Rail Corridor**\n\nCorn Intel is running in local production mode with verified buyer directory contacts. Current activity is concentrated in ${stateList || 'core corridor states'}, with rail-served facilities and export-linked buyers showing the strongest marketing opportunities. Use the buyer table to compare net bids after freight and call the facility grain desk directly from the app.`;
+    return `**${crop} Market Update: Basis Opportunities by Rail Corridor**\n\nCrop Intel is running in local production mode with verified buyer directory contacts. Current activity is concentrated in ${stateList || 'core corridor states'}, with rail-served facilities and export-linked buyers showing the strongest marketing opportunities. Use the buyer table to compare net bids after freight and call the facility grain desk directly from the app.`;
 }
 
 export const aiRouter = Router();
