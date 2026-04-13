@@ -12,7 +12,7 @@
     <meta name="author" content="Crop Intel" />
     <meta name="robots" content="index, follow" />
 
-    <!-- Open Graph (Facebook, LinkedIn, Gemini, Slack link previews) -->
+    <!-- Open Graph (Facebook, LinkedIn, Gemini, NotebookLM, Slack link previews) -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Crop Intel USA — Commodity Intelligence Platform" />
     <meta property="og:description" content="Enterprise-grade grain market intelligence. Real-time USDA cash bids, BNSF rail rate optimization, Net Delivered Value analysis, and AI-driven buyer recommendations. Serving the Northern Plains grain corridor." />
@@ -24,7 +24,7 @@
     <meta name="twitter:title" content="Crop Intel USA — Commodity Intelligence Platform" />
     <meta name="twitter:description" content="Real-time USDA cash bids, BNSF rail freight optimization, and AI-powered buyer matching for the agricultural commodities market." />
 
-    <!-- Structured Data: Organization -->
+    <!-- Structured Data: WebApplication -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -57,49 +57,191 @@
     <link href='https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css' rel='stylesheet' />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!--
+      STATIC SHELL: This content is visible to HTTP crawlers (NotebookLM, Gemini, search engines)
+      that cannot execute JavaScript. React's createRoot().render() replaces everything inside #root
+      once the JS bundle loads, so real users never see this — they get the full interactive app.
+    -->
+    <div id="root">
+      <div style="max-width: 960px; margin: 0 auto; padding: 40px 24px; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #e2e8f0; background: #0f172a; min-height: 100vh; line-height: 1.7;">
 
-    <!-- Fallback for crawlers/bots/AI that cannot execute JavaScript -->
-    <noscript>
-      <div style="max-width: 900px; margin: 40px auto; padding: 20px; font-family: system-ui, sans-serif; color: #e2e8f0; background: #0f172a;">
-        <h1>Crop Intel USA — Commodity Intelligence & Rail Logistics Platform</h1>
+        <header style="margin-bottom: 32px; border-bottom: 1px solid #334155; padding-bottom: 24px;">
+          <h1 style="font-size: 28px; font-weight: 800; margin: 0 0 8px 0;">🌾 Crop Intel USA</h1>
+          <p style="font-size: 16px; color: #94a3b8; margin: 0;">Enterprise Commodity Intelligence &amp; Rail Logistics Platform</p>
+          <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Serving the Northern Plains grain corridor from Campbell, MN</p>
+        </header>
 
-        <h2>Platform Overview</h2>
-        <p>Crop Intel is an enterprise-grade commodity intelligence platform serving the Northern Plains grain corridor. It provides real-time market data, freight optimization, and AI-driven insights for agricultural commodity trading.</p>
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Platform Overview</h2>
+          <p>Crop Intel is an enterprise-grade commodity intelligence platform built for agricultural commodity trading on the BNSF rail network. The platform aggregates real-time USDA cash bids, calculates BNSF rail freight costs using Tariff 4022 rate schedules, and computes Net Delivered Value (NDV) — the cash bid minus total freight — to identify the most profitable buyer destinations for grain originating from Campbell, Minnesota.</p>
+          <p>The platform supports five commodity types: <strong>Yellow Corn</strong>, <strong>White Corn</strong>, <strong>Soybeans</strong>, <strong>Wheat</strong>, and <strong>Sunflowers</strong> (both High Oleic oilseed and confection varieties). It uses AI-powered analysis via Google Gemini to generate daily morning market scans and buyer recommendations.</p>
+        </section>
 
-        <h2>Core Features</h2>
-        <ul>
-          <li><strong>National Price Heatmap:</strong> Interactive Mapbox-powered visualization of USDA cash bids across the entire U.S. grain market. Covers Yellow Corn, White Corn, Soybeans, Wheat, and Sunflowers.</li>
-          <li><strong>BNSF Rail Rate Engine:</strong> Integrated with BNSF Tariff 4022 via mTLS API. Calculates real rail freight from Campbell, MN to over 200 buyer destinations.</li>
-          <li><strong>Net Delivered Value (NDV):</strong> Cash Bid minus Freight Cost. The true profitability metric for each buyer lane, computed in real-time.</li>
-          <li><strong>Sunflower Best Lanes:</strong> Dedicated oilseed and confection sunflower market with ADM Enderlin, Cargill West Fargo, Red River Commodities, and CHS Fargo.</li>
-          <li><strong>Interline Tracking Bridge:</strong> BNSF API provides tracking to Breckenridge interchange, then Commtrex/CPKC ShipOnline bridges visibility for RRVW interline moves.</li>
-          <li><strong>Automated Offers:</strong> Bushel-style one-click contract locking with 60-second countdown timer for premium capture.</li>
-          <li><strong>Drought Intelligence:</strong> U.S. Drought Monitor (USDM) overlay showing D0-D4 drought severity on the commodity map.</li>
-          <li><strong>AI Market Analysis:</strong> Google Gemini-powered buyer rankings, morning market scans, and opportunity identification.</li>
-        </ul>
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Core Features</h2>
+          <ul style="padding-left: 20px;">
+            <li style="margin-bottom: 8px;"><strong>National Price Heatmap:</strong> Interactive Mapbox GL JS visualization of USDA cash bids across the entire U.S. grain market, with buyer markers color-coded by rail confidence score and opportunity classification. Covers 200+ buyer destinations across 12+ BNSF corridor states.</li>
+            <li style="margin-bottom: 8px;"><strong>BNSF Rail Rate Engine:</strong> Integrated with BNSF Tariff 4022 via mTLS API (api.bnsf.com:6443). Calculates real freight rates from Campbell, MN (station code: CAMPB) to destinations across ND, MN, SD, IA, NE, KS, TX, WA, OR, CA. Includes tariff group classification, mileage bands, and per-bushel rate computation for 24-car and 52-car unit train configurations.</li>
+            <li style="margin-bottom: 8px;"><strong>Net Delivered Value (NDV) Analysis:</strong> The central profitability metric: NDV = Cash Bid − Freight Cost. Computed in real-time for every buyer, enabling apples-to-apples comparison across geographically dispersed buyers with vastly different freight structures.</li>
+            <li style="margin-bottom: 8px;"><strong>Sunflower Best Lanes:</strong> Dedicated market intelligence module for sunflower oilseed and confection markets originating from Campbell, MN. Ranks destinations by NDV, shows interline indicators (I=0 single-line BNSF vs I=1 interline RRVW/CPKC), and provides one-click automated contract offers.</li>
+            <li style="margin-bottom: 8px;"><strong>Interline Tracking Bridge:</strong> For interline rail moves (e.g., Campbell → Breckenridge → Enderlin via RRVW), the BNSF ShipperConnect API provides tracking to the Breckenridge interchange point. Beyond that, the platform bridges the visibility gap using Commtrex Rail IQ and CPKC ShipOnline for the short-line segment.</li>
+            <li style="margin-bottom: 8px;"><strong>Automated Offers (Bushel Model):</strong> One-click contract locking with a 60-second countdown timer. Generates pre-populated contract offers with price, quantity (1,244.40 CWT per railcar), delivery window, and total contract value. Designed to mimic Bushel's rapid-fire offer model for premium capture.</li>
+            <li style="margin-bottom: 8px;"><strong>Drought Intelligence:</strong> U.S. Drought Monitor (USDM) overlay showing D0–D4 drought severity classifications directly on the commodity price heatmap. Correlates drought conditions with supply-side pressure on basis spreads.</li>
+            <li style="margin-bottom: 8px;"><strong>AI Market Analysis:</strong> Google Gemini-powered morning market scans, buyer ranking algorithms, opportunity identification, and basis spread forecasting. Includes ensemble ML models (GradientBoosting + Random Forest) for predicting interline basis spread convergence.</li>
+            <li style="margin-bottom: 8px;"><strong>Rail Confidence Scoring:</strong> Each buyer receives a 0-100 rail confidence score based on proximity to BNSF track segments (Haversine distance), facility type bonus (shuttle/export = +20 pts), and nearest transloader distance. Scores ≥ 70 = "confirmed", 40-69 = "likely", 15-39 = "possible".</li>
+            <li style="margin-bottom: 8px;"><strong>Price Provenance (Trust Layer):</strong> Every price component (futures, basis, freight, fees) carries a DataSource object with confidence level (verified/estimated/missing), source attribution (e.g., "USDA AMS", "BNSF Tariff 4022"), timestamp, and staleness threshold. The UI displays trust badges so farmers know exactly where each number comes from.</li>
+          </ul>
+        </section>
 
-        <h2>Market Coverage</h2>
-        <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
-          <tr><th>Commodity</th><th>Top Buyer</th><th>Location</th><th>Bid ($/CWT)</th><th>NDV ($/CWT)</th></tr>
-          <tr><td>High Oleic Sunflower (Oilseed)</td><td>Cargill</td><td>West Fargo, ND</td><td>$23.95</td><td>$22.99</td></tr>
-          <tr><td>High Oleic Sunflower (Oilseed)</td><td>ADM</td><td>Enderlin, ND</td><td>$23.75</td><td>$22.30</td></tr>
-          <tr><td>Confection Sunflower</td><td>Red River Commodities</td><td>Fargo, ND</td><td>$30.00</td><td>$29.04</td></tr>
-          <tr><td>Confection Sunflower</td><td>CHS</td><td>Fargo, ND</td><td>$29.25</td><td>$28.29</td></tr>
-        </table>
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Sunflower Market Intelligence</h2>
+          <p>The sunflower lane engine provides dedicated analysis for the High Oleic oilseed and confection sunflower markets from Campbell, MN. Key destinations and their current Net Delivered Values:</p>
 
-        <h2>Rail Logistics</h2>
-        <p>Origin: Campbell, MN (BNSF Station: CAMPB). The platform differentiates between single-line BNSF routes (I=0, e.g., Campbell → West Fargo) and interline moves requiring RRVW hand-off (I=1, e.g., Campbell → Breckenridge → Enderlin). Interline moves incur RRVW switching fees of ~$350/car ($0.28/cwt).</p>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px;">
+            <thead>
+              <tr style="background: #1e293b; border-bottom: 2px solid #334155;">
+                <th style="padding: 10px 12px; text-align: left;">Commodity</th>
+                <th style="padding: 10px 12px; text-align: left;">Buyer</th>
+                <th style="padding: 10px 12px; text-align: left;">Destination</th>
+                <th style="padding: 10px 12px; text-align: left;">Interline</th>
+                <th style="padding: 10px 12px; text-align: right;">Bid/CWT</th>
+                <th style="padding: 10px 12px; text-align: right;">Freight/CWT</th>
+                <th style="padding: 10px 12px; text-align: right;">NDV/CWT</th>
+                <th style="padding: 10px 12px; text-align: left;">Signal</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 12px;">High Oleic Sunflower (Oilseed)</td>
+                <td style="padding: 8px 12px;">Cargill</td>
+                <td style="padding: 8px 12px;">West Fargo, ND</td>
+                <td style="padding: 8px 12px;">I=0 (Single-Line BNSF)</td>
+                <td style="padding: 8px 12px; text-align: right;">$23.95</td>
+                <td style="padding: 8px 12px; text-align: right;">$0.96</td>
+                <td style="padding: 8px 12px; text-align: right; font-weight: bold; color: #22c55e;">$22.99</td>
+                <td style="padding: 8px 12px; color: #22c55e;">🟢 STRONG SELL</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 12px;">High Oleic Sunflower (Oilseed)</td>
+                <td style="padding: 8px 12px;">ADM</td>
+                <td style="padding: 8px 12px;">Enderlin, ND</td>
+                <td style="padding: 8px 12px;">I=1 (RRVW → CPKC Interline)</td>
+                <td style="padding: 8px 12px; text-align: right;">$23.75</td>
+                <td style="padding: 8px 12px; text-align: right;">$1.45</td>
+                <td style="padding: 8px 12px; text-align: right; font-weight: bold; color: #f59e0b;">$22.30</td>
+                <td style="padding: 8px 12px; color: #f59e0b;">🟡 HOLD</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 12px;">Confection Sunflower</td>
+                <td style="padding: 8px 12px;">Red River Commodities</td>
+                <td style="padding: 8px 12px;">Fargo, ND</td>
+                <td style="padding: 8px 12px;">I=0 (Single-Line BNSF)</td>
+                <td style="padding: 8px 12px; text-align: right;">$30.00</td>
+                <td style="padding: 8px 12px; text-align: right;">$0.96</td>
+                <td style="padding: 8px 12px; text-align: right; font-weight: bold; color: #22c55e;">$29.04</td>
+                <td style="padding: 8px 12px; color: #22c55e;">🟢 STRONG SELL</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #1e293b;">
+                <td style="padding: 8px 12px;">Confection Sunflower</td>
+                <td style="padding: 8px 12px;">CHS</td>
+                <td style="padding: 8px 12px;">Fargo, ND</td>
+                <td style="padding: 8px 12px;">I=0 (Single-Line BNSF)</td>
+                <td style="padding: 8px 12px; text-align: right;">$29.25</td>
+                <td style="padding: 8px 12px; text-align: right;">$0.96</td>
+                <td style="padding: 8px 12px; text-align: right; font-weight: bold; color: #3b82f6;">$28.29</td>
+                <td style="padding: 8px 12px; color: #3b82f6;">🔵 SELL</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size: 12px; color: #64748b; margin-top: 8px;">Futures Anchor: Soybean Oil (ZL) at 67.75¢/lb | Implied Crush (SOM): 293'2 ¢/bu</p>
+        </section>
 
-        <h2>Technology Stack</h2>
-        <p>React + TypeScript, Vite, Mapbox GL JS, BNSF mTLS API, Google Gemini AI, USDA Market News API, U.S. Drought Monitor API. Deployed on Vercel with Railway backend.</p>
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Rail Logistics — Campbell, MN Origin</h2>
+          <p><strong>Origin:</strong> Campbell, MN (BNSF Station Code: CAMPB, Coordinates: 46.0953°N, 96.3975°W)</p>
+          <p>The platform classifies every destination lane by its rail routing complexity:</p>
+          <ul style="padding-left: 20px;">
+            <li style="margin-bottom: 8px;"><strong>Single-Line (I=0):</strong> Destinations reachable entirely on BNSF tracks. Example: Campbell → West Fargo, ND. No interchange fees. Full BNSF ShipperConnect tracking visibility throughout. Freight: ~$0.96/cwt.</li>
+            <li style="margin-bottom: 8px;"><strong>Interline (I=1):</strong> Destinations requiring a hand-off to another railroad. Example: Campbell → Breckenridge, MN (BNSF) → Enderlin, ND (RRVW/CPKC). Incurs mandatory interchange fee of ~$350/car ($0.28/cwt) for the RRVW switching at Breckenridge. Total freight: ~$1.45/cwt. Tracking has a visibility gap at the interchange point — bridged by Commtrex Rail IQ or CPKC ShipOnline.</li>
+          </ul>
+          <p><strong>Railcar Loading Physics:</strong> Sunflower oilseed has a test weight of ~28 lb/bu. Standard hopper cars (286,000 lb GRL, 4,750 cu ft) cube-out rather than weigh-out for sunflowers, yielding approximately 1,244.40 CWT (124,440 lbs) per car vs. the 180,000 lb weight limit for denser commodities like corn.</p>
+        </section>
 
-        <h2>Futures Anchors</h2>
-        <p>Soybean Oil (ZL): 67.75¢/lb | Implied Crush (SOM): 293'2 ¢/bu | Corn (ZC): varies by contract month.</p>
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Basis Spread Forecast (ML Engine)</h2>
+          <p>An ensemble machine learning model (GradientBoosting + Random Forest) forecasts the ADM Enderlin – Cargill West Fargo basis spread over the next 30 days. Key findings:</p>
+          <ul style="padding-left: 20px;">
+            <li><strong>Predicted Mean Spread:</strong> −$0.0073/cwt (ADM does not currently offer enough premium to offset interline costs)</li>
+            <li><strong>Threshold Required:</strong> $0.25/cwt spread needed to justify RRVW interchange fees</li>
+            <li><strong>Recommendation:</strong> HOLD on ADM Enderlin; default to Cargill West Fargo for oilseed</li>
+            <li><strong>Re-evaluation Date:</strong> September 1, 2026 (harvest pressure activation)</li>
+            <li><strong>Primary Drivers:</strong> CBOT ZL futures (44% importance), harvest pressure seasonality (28%), crush margin (18%)</li>
+          </ul>
+        </section>
 
-        <p><em>Please enable JavaScript to use the interactive Crop Intel platform.</em></p>
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">BNSF Corridor Coverage</h2>
+          <p>The platform covers the following BNSF rail corridors and markets:</p>
+          <ul style="padding-left: 20px;">
+            <li><strong>Northern Transcon:</strong> Chicago → Minneapolis → Fargo → Bismarck → Billings → Spokane → Seattle/Portland</li>
+            <li><strong>High Line:</strong> Minot → Havre → Shelby → Whitefish → Sandpoint</li>
+            <li><strong>Southern Transcon:</strong> Chicago → Kansas City → Amarillo → Albuquerque → Barstow → Los Angeles</li>
+            <li><strong>California Central Valley:</strong> Barstow → Bakersfield → Fresno → Modesto → Stockton</li>
+            <li><strong>Texas Access:</strong> Kansas City → Tulsa → Dallas → Fort Worth → Houston → Galveston</li>
+            <li><strong>Corn Belt Feeders:</strong> Sioux Falls → Sioux City → Omaha → Lincoln; Minneapolis → Fort Dodge → Omaha</li>
+            <li><strong>Powder River Basin:</strong> Alliance → Gillette → Sheridan → Billings</li>
+          </ul>
+          <p>Primary corridor states: ND, MN, SD, IA, NE, KS, TX, WA, OR, CA, OK, MO</p>
+        </section>
+
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Buyer Types &amp; Classification</h2>
+          <p>The platform tracks the following buyer categories across the BNSF network:</p>
+          <ul style="padding-left: 20px;">
+            <li><strong>Ethanol Plants:</strong> Major corn consumers, typically near BNSF shuttle facilities</li>
+            <li><strong>Feedlots:</strong> Cattle feeding operations, particularly in TX/KS panhandle (Feedlot Alley)</li>
+            <li><strong>Crush Plants:</strong> Soybean and sunflower processing (ADM, Cargill, Bunge)</li>
+            <li><strong>River Terminals:</strong> Mississippi/Columbia River export facilities</li>
+            <li><strong>Shuttle Loaders:</strong> 110-car unit train loading facilities (highest rail efficiency)</li>
+            <li><strong>Export Elevators:</strong> PNW (Portland, Vancouver, Pasco) and Gulf (Houston, Galveston)</li>
+            <li><strong>Confection Processors:</strong> Sunflower confection specialists (Red River Commodities, CHS)</li>
+            <li><strong>Transloaders:</strong> Intermodal transfer points for rail-to-truck or rail-to-rail commodity movement</li>
+          </ul>
+        </section>
+
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Technology Stack</h2>
+          <ul style="padding-left: 20px;">
+            <li><strong>Frontend:</strong> React 18 + TypeScript, Vite build system, Mapbox GL JS for geospatial visualization</li>
+            <li><strong>Backend API:</strong> Node.js/Express on Railway (crop-intel-api-production.up.railway.app)</li>
+            <li><strong>Data Sources:</strong> USDA Agricultural Marketing Service (AMS), BNSF ShipperConnect mTLS API, U.S. Drought Monitor (USDM)</li>
+            <li><strong>AI/ML:</strong> Google Gemini for market analysis, scikit-learn ensemble models for basis spread forecasting</li>
+            <li><strong>Caching:</strong> Redis for freight rate and buyer data caching (12-hour TTL)</li>
+            <li><strong>Deployment:</strong> Vercel (frontend static hosting) + Railway (backend API)</li>
+            <li><strong>Web Scraping:</strong> Firecrawl for live bid extraction from grain elevator websites</li>
+          </ul>
+        </section>
+
+        <section style="margin-bottom: 32px;">
+          <h2 style="font-size: 20px; color: #22d3ee; margin-bottom: 12px;">Data Quality &amp; Provenance</h2>
+          <p>Every price displayed in Crop Intel carries a provenance chain:</p>
+          <ul style="padding-left: 20px;">
+            <li><strong>Futures:</strong> CBOT contract prices (ZC for corn, ZS for soybeans, ZL for soy oil, ZW for wheat)</li>
+            <li><strong>Basis:</strong> USDA AMS regional basis estimates, cross-referenced with Firecrawl-scraped elevator bids</li>
+            <li><strong>Freight:</strong> BNSF Tariff 4022 rate tables (mTLS-verified) or truck model (for sub-200-mile moves)</li>
+            <li><strong>Confidence Levels:</strong> "Verified" (direct API), "Estimated" (modeled/interpolated), "Missing" (default fallback)</li>
+            <li><strong>Staleness:</strong> Each data source has a configurable staleness threshold (e.g., futures = 15 minutes, freight = 12 hours)</li>
+          </ul>
+        </section>
+
+        <footer style="border-top: 1px solid #334155; padding-top: 16px; font-size: 12px; color: #475569;">
+          <p>Crop Intel USA — Commodity Intelligence Platform · Campbell, MN Origin</p>
+          <p>GitHub: github.com/Nelius92/crop-intel-usa · Deployed on Vercel</p>
+          <p><em>Enable JavaScript for the full interactive experience including the real-time price heatmap, BNSF rail network overlay, and automated offer system.</em></p>
+        </footer>
+
       </div>
-    </noscript>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
