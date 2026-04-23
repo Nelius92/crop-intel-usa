@@ -259,11 +259,7 @@ const LaneCard: React.FC<{
 
     const handleConfirm = useCallback(() => {
         setLocked(true);
-        if (offer) {
-            // In production: POST to /api/offers
-            console.log('[CropIntel] Contract locked:', JSON.stringify({ ...offer, status: 'locked' }, null, 2));
-        }
-    }, [offer]);
+    }, []);
 
     const handleExpire = useCallback(() => {
         setOffer(null);

@@ -1,57 +1,39 @@
-# Crop Intel — Functional Validation Report
+# Functional Validation Report
 
-## Executive Summary
-- **Tests**: 111/111 passing (6 suites) ✅
-- **Lint**: Clean (0 warnings, 0 errors) ✅
-- **Build**: Succeeds (dist: 2.1MB JS, 83KB CSS) ✅
-- **API Typecheck**: Clean ✅
-- **1 test fix applied**: Basis confidence assertion corrected
+## Commands Run
 
-## Verified Facts
-- All 6 test suites pass: buyersService, cacheService, freightStress, pricingAccuracy, railConfidence, dataIntegrity
-- TypeScript compiles cleanly for both frontend and API
-- ESLint reports no errors or warnings
-- Vite production build completes in 3s
+1. `npm run lint`
+2. `npm test`
+3. `npm run build`
+4. `npm run typecheck:api`
+5. `npm run build:api`
+6. `npm run preview -- --host 127.0.0.1 --port 4173`
+7. `curl -I http://127.0.0.1:4173/`
 
-## Not Yet Verified
-- App renders correctly in browser (requires dev server)
-- API backend health (requires Railway connectivity)
-- End-to-end buyer data flow from API to UI
+## Results
 
----
+- `npm run lint`
+  - Passed.
+- `npm test`
+  - Passed.
+  - `10` test files, `190` tests passing.
+  - Added validation coverage for:
+    - shared crop-domain threshold mapping
+    - USDA grain parser success/fallback behavior
+- `npm run build`
+  - Passed.
+  - Built app served expected assets, including a separate lazy-loaded `CloudHealthCheck` chunk.
+  - Warning only: main frontend bundle remains above Vite's default chunk-size threshold.
+- `npm run typecheck:api`
+  - Passed.
+- `npm run build:api`
+  - Passed.
+- Runtime shell check
+  - `vite preview` served successfully on `http://127.0.0.1:4173/`.
+  - `curl -I` returned `HTTP/1.1 200 OK`.
 
-## Test Results
+## Notes
 
-| Suite | Tests | Status |
-|-------|-------|--------|
-| `buyersService.test.ts` | 16 | ✅ Pass |
-| `cacheService.test.ts` | varies | ✅ Pass |
-| `freightStress.test.ts` | 22 | ✅ Pass |
-| `pricingAccuracy.test.ts` | varies | ✅ Pass |
-| `railConfidence.test.ts` | varies | ✅ Pass |
-| `dataIntegrity.test.ts` | varies | ✅ Pass |
-| **Total** | **111** | **✅ All pass** |
-
-## Test Fix Applied
-
-**File**: `src/services/__tests__/buyersService.test.ts`
-**Issue**: Test "basis should be estimated when USDA data unavailable" expected all buyers to have `basis.confidence = 'estimated'`, but when the API mock fails, it falls back to `buyers.json` which has `cashPrice` on all 171 corn buyers → `hasRealBid = true` → confidence = `'verified'`.
-**Fix**: Updated assertion to accept either `'verified'` or `'estimated'` depending on data source.
-
-## Build Output
-```
-dist/index.html                     0.61 kB │ gzip:   0.38 kB
-dist/assets/index-DdMC9k62.css     82.67 kB │ gzip:  13.04 kB
-dist/assets/index-p0lxaQLc.js   2,123.70 kB │ gzip: 590.32 kB
-```
-
-> [!WARNING]
-> JS bundle is 2.1MB (590KB gzipped). Consider code-splitting for mobile performance.
-
-## Commands Used
-```bash
-npm test                    # 111 tests pass
-npm run build               # TS + Vite build succeeds
-npm run lint                # 0 errors, 0 warnings
-npm run typecheck:api       # Clean
-```
+- Test output still includes expected fallback-path noise from mocked buyer API requests and USDA parser logging, but all assertions passed.
+- `baseline-browser-mapping` is outdated and warns during test/build; this did not block validation.
+- This validation confirms build, typecheck, and server startup. It does not include a full browser-driven UI walkthrough.

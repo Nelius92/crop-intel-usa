@@ -46,32 +46,32 @@ interface CropDefaults {
 
 const MARKET_DEFAULTS: Record<string, CropDefaults> = {
     'Yellow Corn': {
-        price: 4.35,
-        contract: "ZCH6 (Mar '26)",
-        benchmarkBasis: -0.54,       // Hankinson actual ~Feb 27, 2026 → ~$3.81 cash
+        price: 4.635,
+        contract: "ZCN6 (Jul '26)",
+        benchmarkBasis: -0.77,       // Hankinson actual ~Apr 23, 2026 → ~$3.87 cash (ND avg -0.75 to -0.80)
         benchmarkName: 'Hankinson',
         benchmarkFreight: 0.25,      // Farmer self-delivery cost to Hankinson (~$0.25/bu)
         priceUnit: '$/bu'
     },
     'White Corn': {
-        price: 4.60,
-        contract: "ZCH6 (Mar '26)",
+        price: 4.85,
+        contract: "ZCN6 (Jul '26)",
         benchmarkBasis: 0,               // No local white corn buyer — no benchmark
         benchmarkName: 'No Local Buyer',
         benchmarkFreight: 0,
         priceUnit: '$/bu'
     },
     'Soybeans': {
-        price: 11.42,
-        contract: "ZSH6 (Mar '26)",
+        price: 10.52,
+        contract: "ZSN6 (Jul '26)",
         benchmarkBasis: -0.55,           // AGP Dawson est. basis (nearest crush ~30mi)
         benchmarkName: 'AGP Dawson',
         benchmarkFreight: 0.25,          // Farmer self-delivery cost to AGP Dawson (~$0.25/bu)
         priceUnit: '$/bu'
     },
     'Wheat': {
-        price: 5.42,
-        contract: "ZWH6 (Mar '26)",
+        price: 5.48,
+        contract: "ZWN6 (Jul '26)",
         benchmarkBasis: -0.45,           // SD Wheat Growers Aberdeen est. basis (~70mi)
         benchmarkName: 'SD Wheat Growers Aberdeen',
         benchmarkFreight: 0.25,          // Farmer self-delivery cost (~$0.25/bu)

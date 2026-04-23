@@ -4,8 +4,8 @@
  * Run daily at 6 AM CT to collect the best grain bids nationwide.
  * 
  * Usage:
- *   npx tsx src/scripts/morningBidScan.ts
- *   npx tsx src/scripts/morningBidScan.ts --crops "Yellow Corn,Soybeans"
+ *   npx tsx scripts/morningBidScan.ts
+ *   npx tsx scripts/morningBidScan.ts --crops "Yellow Corn,Soybeans"
  * 
  * The scan:
  * 1. Runs all 3 tiers (Barchart → Firecrawl → USDA)
@@ -106,12 +106,6 @@ const BARCHART_CROP_NAMES: Record<string, string> = {
 function calculateCashBid(futures: number, basis: number): number {
     return Math.round((futures + basis) * 100) / 100;
 }
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function calculateBasis(cashBid: number, futures: number): number {
-    return Math.round((cashBid - futures) * 100) / 100;
-}
-void calculateBasis; // Utility — will be used when Barchart integration goes live
 
 function validateBid(bid: number, futures: number, basis: number): { valid: boolean; expected: number; diff: number } {
     const expected = calculateCashBid(futures, basis);
@@ -488,10 +482,10 @@ async function main() {
                     // Extract buyer-specific prices from NSA daily report
                     // Format: "ADM Enderlin $23.10 cash / $22.60 AOG" style
                     const nsaBuyers: { pattern: RegExp; name: string; city: string; state: string }[] = [
-                        { pattern: /(?:ADM|Archer\s*Daniels)[\s\-]*Enderlin[^$]*?\$?(\d{2}\.\d{2})/i, name: 'ADM Enderlin', city: 'Enderlin', state: 'ND' },
-                        { pattern: /Cargill[\s\-]*(?:West\s*Fargo|WF)[^$]*?\$?(\d{2}\.\d{2})/i, name: 'Cargill West Fargo', city: 'West Fargo', state: 'ND' },
-                        { pattern: /(?:ADM|Archer\s*Daniels)[\s\-]*Pingree[^$]*?\$?(\d{2}\.\d{2})/i, name: 'ADM Pingree', city: 'Pingree', state: 'ND' },
-                        { pattern: /Colorado[\s\-]*Mills[^$]*?\$?(\d{2}\.\d{2})/i, name: 'Colorado Mills', city: 'Lamar', state: 'CO' },
+                        { pattern: /(?:ADM|Archer\s*Daniels)[\s-]*Enderlin[^$]*?\$?(\d{2}\.\d{2})/i, name: 'ADM Enderlin', city: 'Enderlin', state: 'ND' },
+                        { pattern: /Cargill[\s-]*(?:West\s*Fargo|WF)[^$]*?\$?(\d{2}\.\d{2})/i, name: 'Cargill West Fargo', city: 'West Fargo', state: 'ND' },
+                        { pattern: /(?:ADM|Archer\s*Daniels)[\s-]*Pingree[^$]*?\$?(\d{2}\.\d{2})/i, name: 'ADM Pingree', city: 'Pingree', state: 'ND' },
+                        { pattern: /Colorado[\s-]*Mills[^$]*?\$?(\d{2}\.\d{2})/i, name: 'Colorado Mills', city: 'Lamar', state: 'CO' },
                     ];
 
                     for (const nsa of nsaBuyers) {

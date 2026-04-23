@@ -1,4 +1,4 @@
-import { apiGetJson } from './apiClient';
+import { apiGetJson } from '../../services/apiClient';
 
 export interface PlaceDetails {
     formattedAddress?: string;
@@ -58,4 +58,3 @@ export const googleMapsService = {
         }
     }
 };
-

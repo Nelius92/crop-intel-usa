@@ -18,6 +18,7 @@ export interface BNSFOpportunity {
     railAccessible: boolean;
     contactInfo: string;
     livePriceBase: number;
+    currentPrice?: number;
     freightRateOverride: number;
     managerName?: string;
     operatingHours?: string;

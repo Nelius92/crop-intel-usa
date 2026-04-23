@@ -8,12 +8,13 @@ export default defineConfig({
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),
+            "@shared": path.resolve(__dirname, "./shared"),
         },
     },
     test: {
         globals: true,
         environment: 'jsdom',
         setupFiles: './src/test/setup.ts',
-        include: ['src/**/*.test.{ts,tsx}'],
+        include: ['src/**/*.test.{ts,tsx}', 'apps/api/src/**/*.test.ts'],
     },
 });

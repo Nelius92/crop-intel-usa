@@ -152,6 +152,12 @@ export function severityColor(severity: DroughtSeverity): string {
 
 let cache: DroughtCache | null = null;
 
+function debugDrought(message: string, ...args: unknown[]) {
+    if (import.meta.env.DEV) {
+        console.info(message, ...args);
+    }
+}
+
 function isCacheValid(): boolean {
     if (!cache) return false;
     return (Date.now() - cache.fetchedAt) < CACHE_TTL_MS;
@@ -183,11 +189,11 @@ interface USDMStateRow {
  */
 export async function fetchStateDroughtData(): Promise<Map<string, StateDrought>> {
     if (isCacheValid() && cache) {
-        console.log('[DroughtService] Returning cached drought data');
+        debugDrought('[DroughtService] Returning cached drought data');
         return cache.data;
     }
 
-    console.log('[DroughtService] Fetching fresh drought data from USDM API...');
+    debugDrought('[DroughtService] Fetching fresh drought data from USDM API...');
 
     // Use a 90-day lookback to find the most recent data week
     const endDate = new Date();
@@ -255,7 +261,7 @@ export async function fetchStateDroughtData(): Promise<Map<string, StateDrought>
 
     // Update cache
     cache = { data: result, fetchedAt: Date.now() };
-    console.log(`[DroughtService] Cached drought data for ${result.size} states`);
+    debugDrought(`[DroughtService] Cached drought data for ${result.size} states`);
 
     return result;
 }
@@ -290,5 +296,5 @@ export function formatDroughtSummary(drought: StateDrought | null): string {
  */
 export function clearDroughtCache(): void {
     cache = null;
-    console.log('[DroughtService] Cache cleared');
+    debugDrought('[DroughtService] Cache cleared');
 }

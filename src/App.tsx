@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { HeatMapPage } from './pages/HeatMapPage';
 import { BuyersPage } from './pages/BuyersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UnderConstructionPage } from './pages/UnderConstructionPage';
 import { BottomNav } from './components/BottomNav';
-import { CloudHealthCheck } from './components/CloudHealthCheck';
 import { CropSelector } from './components/CropSelector';
 import { Logo } from './components/Logo';
 import { CropType } from './types';
@@ -12,6 +11,7 @@ import { CropType } from './types';
 // Toggle this to show/hide the under construction page
 const SHOW_UNDER_CONSTRUCTION = false;
 const SHOW_DEV_TOOLS = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_TOOLS === 'true';
+const CloudHealthCheck = lazy(() => import('./devtools/CloudHealthCheck'));
 
 function App() {
     const [activeTab, setActiveTab] = useState<'map' | 'buyers' | 'settings'>('map');
@@ -63,7 +63,11 @@ function App() {
             <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
 
             {/* Cloud Integrations Health Check */}
-            {SHOW_DEV_TOOLS ? <CloudHealthCheck /> : null}
+            {SHOW_DEV_TOOLS ? (
+                <Suspense fallback={null}>
+                    <CloudHealthCheck />
+                </Suspense>
+            ) : null}
         </div>
     );
 }

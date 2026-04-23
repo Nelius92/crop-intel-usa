@@ -1,9 +1,11 @@
+import type { CropType } from '../shared/crops.js';
+
+export type { CropType } from '../shared/crops.js';
+
 export interface Coordinates {
     lat: number;
     lng: number;
 }
-
-export type CropType = 'Yellow Corn' | 'White Corn' | 'Soybeans' | 'Wheat' | 'Sunflowers';
 
 export interface HeatmapPoint extends Coordinates {
     id: string;
@@ -11,6 +13,10 @@ export interface HeatmapPoint extends Coordinates {
     basis: number;
     change24h: number; // Percentage
     isOpportunity: boolean;
+    railConfidence?: number;
+    railEvidence?: {
+        score?: number;
+    };
     regionName?: string; // For display
     marketLabel?: string; // e.g., "Strong export demand"
     buyerId?: string;     // Links back to Buyer.id for click resolution
@@ -125,9 +131,10 @@ export interface Buyer extends Coordinates {
 export interface MarketOracle {
     futuresPrice: number;
     contractMonth: string;
-    hankinsonBasis: number;
+    benchmarkBasis: number;
     centralRegionBasis: number;
     lastUpdated: string;
+    hankinsonBasis?: number;
 }
 
 export interface RailNode {

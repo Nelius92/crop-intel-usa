@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { geminiService } from '../services/gemini';
-import { googleMapsService } from '../services/googleMapsService';
+import { geminiService } from './services/gemini';
+import { googleMapsService } from './services/googleMapsService';
 import { Activity, CheckCircle, XCircle, Loader2, MapPin, Brain } from 'lucide-react';
 
 interface TestResult {
@@ -164,6 +164,8 @@ export const CloudHealthCheck = () => {
         </div>
     );
 };
+
+export default CloudHealthCheck;
 
 const StatusDisplay = ({ result }: { result: TestResult }) => {
     if (result.status === 'idle') return <div className="text-xs text-white/40 italic">Ready to test</div>;

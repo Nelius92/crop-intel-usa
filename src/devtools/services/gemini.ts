@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Buyer, HeatmapPoint, MarketOracle, CropType } from '../types';
-import { FALLBACK_HEATMAP_DATA, FALLBACK_BUYERS_DATA } from './fallbackData';
-import { cacheService, CACHE_TTL } from './cacheService';
-import { apiPostJson } from './apiClient';
+import { Buyer, HeatmapPoint, MarketOracle, CropType } from '../../types';
+import { FALLBACK_HEATMAP_DATA, FALLBACK_BUYERS_DATA } from '../../services/fallbackData';
+import { cacheService, CACHE_TTL } from '../../services/cacheService';
+import { apiPostJson } from '../../services/apiClient';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -289,10 +289,11 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
 
         // Default Fallbacks (User Provided Truths from Guardian Hankinson)
         const FALLBACK_ORACLE: MarketOracle = {
-            futuresPrice: 4.45,
-            contractMonth: "Mar '26",
-            hankinsonBasis: -0.47,
-            centralRegionBasis: -0.65, // Updated for 2026 realism
+            futuresPrice: 4.635,
+            contractMonth: "Jul '26",
+            benchmarkBasis: -0.77,
+            hankinsonBasis: -0.77,
+            centralRegionBasis: -0.70, // ND/MN avg basis Apr 2026
             lastUpdated: new Date().toISOString()
         };
 
@@ -333,11 +334,11 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             Return a JSON object with:
             - "futuresPrice": number
             - "contractMonth": string
-            - "hankinsonBasis": number (Use a relevant benchmark basis)
+            - "benchmarkBasis": number (Use a relevant benchmark basis)
             - "centralRegionBasis": number
             
             If you cannot find an exact number, use these SAFE DEFAULTS for ${crop}:
-            Futures: 4.45, Hankinson: -0.47, Central: -0.60 (Adjust for crop price ~ $10 for beans).
+            Futures: 4.45, Benchmark: -0.47, Central: -0.60 (Adjust for crop price ~ $10 for beans).
             
             Output ONLY valid JSON.
         `;
@@ -373,6 +374,8 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
 
         if (!API_KEY) return buyers;
 
+        const benchmarkBasis = oracle.benchmarkBasis ?? oracle.hankinsonBasis ?? -0.47;
+
         // Ensure Guardian Hankinson is in the list
         const buyersToEnrich = [...buyers];
         const hankinsonIndex = buyersToEnrich.findIndex(b =>
@@ -390,8 +393,8 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
                 region: 'North Dakota',
                 lat: 46.0691,
                 lng: -96.9034,
-                basis: oracle.hankinsonBasis,
-                cashPrice: oracle.futuresPrice + oracle.hankinsonBasis,
+                basis: benchmarkBasis,
+                cashPrice: oracle.futuresPrice + benchmarkBasis,
                 futuresPrice: oracle.futuresPrice,
                 contractMonth: oracle.contractMonth,
                 benchmarkDiff: 0,
@@ -404,8 +407,8 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
             buyersToEnrich[hankinsonIndex] = {
                 ...buyersToEnrich[hankinsonIndex],
                 name: 'Guardian Hankinson', // Normalize name
-                basis: oracle.hankinsonBasis,
-                cashPrice: oracle.futuresPrice + oracle.hankinsonBasis,
+                basis: benchmarkBasis,
+                cashPrice: oracle.futuresPrice + benchmarkBasis,
                 futuresPrice: oracle.futuresPrice,
                 contractMonth: oracle.contractMonth,
                 benchmarkDiff: 0,
@@ -473,7 +476,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
                     futuresPrice: oracle.futuresPrice,
                     contractMonth: oracle.contractMonth,
                     cashPrice: parseFloat((oracle.futuresPrice + basis).toFixed(2)),
-                    benchmarkDiff: parseFloat((basis - oracle.hankinsonBasis).toFixed(2)),
+                    benchmarkDiff: parseFloat((basis - benchmarkBasis).toFixed(2)),
                     verified: true // Implicitly verified by Oracle logic
                 };
             });
@@ -513,7 +516,7 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
                     futuresPrice: oracle.futuresPrice,
                     contractMonth: oracle.contractMonth,
                     cashPrice: parseFloat((oracle.futuresPrice + fallbackBasis).toFixed(2)),
-                    benchmarkDiff: parseFloat((fallbackBasis - oracle.hankinsonBasis).toFixed(2)),
+                    benchmarkDiff: parseFloat((fallbackBasis - benchmarkBasis).toFixed(2)),
                     verified: false
                 };
             });

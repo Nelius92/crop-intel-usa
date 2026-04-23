@@ -1,39 +1,48 @@
-# Crop Intel — Code Cleanup Report
+# Code Cleanup Report
 
-## Executive Summary
-- Eliminated 12 `as any` type casts in `buyersService.ts` by extending interface
-- Removed 2 `console.log` statements from production service code
-- Fixed 1 failing test (basis confidence assertion)
-- Identified legacy `hankinsonBasis` references in `gemini.ts` (deferred — AI feature)
+## Scope
 
-## Changes Made
+Balanced cleanup and structure pass focused on repo health first, then organization, while keeping the current app and API surface stable.
 
-### 1. `buyersService.ts` — Type Safety (12 `as any` → 0)
-**Problem**: `ApiBuyerDirectoryRecord` was missing 6 fields that come from the API/DB, causing 12 `as any` casts throughout the price calculation pipeline.
+## Completed
 
-**Fix**: Added `cashBid`, `postedBasis`, `bidDate`, `bidSource`, `nearTransload`, `railAccessible` to the interface. Created typed `buyerAny` reference for remaining bid access pattern.
+- Restored a green baseline:
+  - Fixed the extracted `corn-map` syntax/type issues.
+  - Aligned buyer-intel scoring to the current 7-signal frontend model, including drought.
+  - Corrected heatmap crop threshold drift by sourcing thresholds only from shared `CropType` definitions.
+- Centralized shared domain rules:
+  - Added `shared/crops` for crop metadata, USDA mappings, and heatmap thresholds.
+  - Added `shared/buyerIntel` for canonical buyer-intel scoring logic.
+  - Updated frontend and API consumers to use the shared modules.
+  - Added `@shared` path support to root Vite/Vitest/TS config and API TS config.
+- Split oversized modules by responsibility:
+  - `CornMap` now delegates constants, layer helpers, and selection logic to `src/components/corn-map/`.
+  - `OpportunityDrawer` now delegates actions, trust/freshness UI, market cards, and type guards to `src/components/opportunity-drawer/`.
+  - `buyersService` now re-exports a focused `src/services/buyers/` module set for API adaptation, filtering, live-bid merge, and orchestration.
+  - USDA route logic now lives in `apps/api/src/services/usda/` with a thin router in `apps/api/src/routes/usda.ts`.
+- Reorganized repo structure:
+  - Moved `src/scripts/morningBidScan.ts` and `src/scripts/scrapeBnsfAssets.ts` to top-level `scripts/`.
+  - Moved `CloudHealthCheck` and its Gemini/Google Maps helpers into `src/devtools/` and lazy-loaded the feature from `src/App.tsx`.
+  - Removed unused frontend-only services:
+    - `src/services/bidScraperService.ts`
+    - `src/services/mapDataService.ts`
+    - `src/services/usdaService.ts`
+  - Moved loose Python utilities into `python/legacy/`.
+  - Moved documentation/reference assets into `docs/assets/`.
+- Tightened runtime hygiene:
+  - Replaced remaining frontend `console.log` calls with no-op behavior or dev-only informational logging.
+  - Added explicit regression coverage for shared crop-domain thresholds and USDA parser behavior.
 
-### 2. `usdaMarketService.ts` — Console Cleanup
-**Problem**: 2 `console.log` statements in production code path.
+## Compatibility Notes
 
-**Fix**: Replaced with comments (silent operation for production).
+- Preserved existing API routes for `/api/buyers`, `/api/usda`, and `/api/ai`.
+- Kept compatibility aliases where they are still part of the app surface or fallback logic:
+  - `MarketOracle.hankinsonBasis`
+  - `marketDataService.getHankinsonBenchmark()`
+  - `marketDataService.updateHankinsonBasis()`
 
-### 3. `buyersService.test.ts` — Test Fix
-**Problem**: Test expected `basis.confidence = 'estimated'` but fallback `buyers.json` has `cashPrice` on all 171 corn buyers, making `hasRealBid = true` → confidence = `'verified'`.
+## Residual Follow-Up
 
-**Fix**: Updated assertion to accept either `'verified'` or `'estimated'`.
-
-## Identified But Deferred
-| Item | File | Reason |
-|------|------|--------|
-| Legacy `hankinsonBasis` in MarketOracle type | `types.ts:117` | Used by Gemini AI service — separate feature |
-| 7 `hankinsonBasis` refs in Gemini service | `gemini.ts` | AI oracle feature — out of scope for cleanup |
-| 5 `as any` casts in `CornMap.tsx` | Map component | Mapbox GL type limitations — acceptable |
-| 1 `as any` in `OpportunityDrawer.tsx` | Drawer component | Legacy prop access — low risk |
-| `console.log` in Gemini debug | `gemini.ts:166` | Debug logging for AI feature — keep for now |
-| `console.log` in BNSF scraper script | `scrapeBnsfAssets.ts` | Script output — appropriate |
-
-## Verification
-- All 111 tests pass ✅
-- Build succeeds (2.1MB JS) ✅
-- Lint clean ✅
+- Frontend production build still emits a chunk-size warning for the main bundle at roughly `2.19 MB` minified.
+- `baseline-browser-mapping` is stale and produces a warning during test/build runs.
+- The benchmark compatibility aliases above can be retired in a later pass once downstream callers are updated.

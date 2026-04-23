@@ -7,7 +7,7 @@ import { Buyer, CropType } from '../../types';
  *
  * Validates the composite scoring engine that ranks buyers by
  * actionability: crop match + price advantage + rail access +
- * verified contact + freight efficiency + bid freshness.
+ * verified contact + freight efficiency + bid freshness + drought impact.
  */
 
 function makeBuyer(overrides: Partial<Buyer> = {}): Buyer {
@@ -262,14 +262,14 @@ describe('Buyer Intel Score', () => {
             expect(result.score).toBe(signalSum);
         });
 
-        it('max possible score should be 100', () => {
-            const maxSignals = [25, 25, 15, 10, 15, 10]; // all signal maxes
-            expect(maxSignals.reduce((a, b) => a + b, 0)).toBe(100);
+        it('max possible score should be 105', () => {
+            const maxSignals = [25, 25, 15, 10, 15, 10, 5];
+            expect(maxSignals.reduce((a, b) => a + b, 0)).toBe(105);
         });
 
-        it('all signals should have 6 entries', () => {
+        it('all signals should have 7 entries', () => {
             const result = calculateBuyerIntelScore(makeBuyer(), 'Yellow Corn');
-            expect(result.signals).toHaveLength(6);
+            expect(result.signals).toHaveLength(7);
         });
 
         it('all 5 crops should return a valid score', () => {

@@ -6,6 +6,23 @@ import { bnsfOpportunitiesService, BNSFOpportunity } from '../services/bnsfScrap
 import { BuyerMarkers } from './BuyerMarkers';
 import { OpportunityDrawer } from './OpportunityDrawer';
 import { fetchStateDroughtData, StateDrought } from '../services/droughtService';
+import { STATE_CENTERS, STATE_NAME_TO_CODE } from './corn-map/constants';
+import {
+    buildHeatSourceFeatures,
+    buildStateFillExpressions,
+    buildStateMetrics,
+    buildTransloaderFeatures,
+    focusTopStates,
+    setLayerVisibility,
+    updateTopStateFilters,
+    viewportHasData,
+} from './corn-map/layers';
+import {
+    expandCluster,
+    POINT_INTERACTION_LAYERS,
+    reconstructBnsfOpportunity,
+    resolveHeatmapSelection,
+} from './corn-map/selection';
 
 // Token from environment variables
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
@@ -30,38 +47,6 @@ interface CornMapProps {
     hoveredRegionId?: string | null;
     isVisible?: boolean; // Whether the map tab is currently active
 }
-
-const STATE_CENTERS: Record<string, [number, number]> = {
-    'CA': [-119.4179, 36.7783],
-    'TX': [-99.9018, 31.9686],
-    'WA': [-120.7401, 47.7511],
-    'ID': [-114.7420, 44.0682],
-    'OR': [-120.5542, 43.8041],
-    'IL': [-89.3985, 40.6331],
-    'IA': [-93.0977, 41.8780],
-    'NE': [-99.9018, 41.4925],
-    'MN': [-94.6859, 46.7296],
-    'KS': [-98.4842, 39.0119],
-    'MO': [-92.2884, 37.9643],
-    'SD': [-100.2263, 44.2998],
-    'ND': [-101.0020, 47.5515],
-    'OH': [-82.9071, 40.4173],
-    'IN': [-86.1261, 40.2672]
-};
-
-const STATE_NAME_TO_CODE: Record<string, string> = {
-    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
-    'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
-    'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
-    'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
-    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
-    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH',
-    'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC',
-    'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA',
-    'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD', 'Tennessee': 'TN',
-    'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA',
-    'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY'
-};
 
 export const CornMap: React.FC<CornMapProps> = ({
     showHeatmap,
@@ -96,21 +81,7 @@ export const CornMap: React.FC<CornMapProps> = ({
     useEffect(() => { droughtDataRef.current = droughtData; }, [droughtData]);
 
     // Compute State Metrics for Coloring/Blinking
-    const stateMetrics = React.useMemo(() => {
-        const metrics: Record<string, { maxPrice: number, count: number, isHot: boolean }> = {};
-        buyers.forEach(b => {
-            if (!metrics[b.state]) metrics[b.state] = { maxPrice: 0, count: 0, isHot: false };
-            metrics[b.state].count++;
-            if ((b.netPrice || 0) > metrics[b.state].maxPrice) metrics[b.state].maxPrice = b.netPrice || 0;
-        });
-
-        Object.keys(metrics).forEach(state => {
-            if (metrics[state].maxPrice > 4.5 || topStates.includes(state)) {
-                metrics[state].isHot = true;
-            }
-        });
-        return metrics;
-    }, [buyers, topStates]);
+    const stateMetrics = React.useMemo(() => buildStateMetrics(buyers, topStates), [buyers, topStates]);
 
     useEffect(() => {
         if (map.current) return;
@@ -593,8 +564,9 @@ export const CornMap: React.FC<CornMapProps> = ({
             // Events — Guard state-fill clicks so data point clicks don't also trigger zoom
             map.current?.on('click', 'state-fill', (e) => {
                 // Don't zoom if the click hit a data point layer
-                const pointLayers = ['market-point-layer', 'bnsf-opp-layer', 'clusters', 'bnsf-opp-clusters', 'transloader-layer'];
-                const hitFeatures = map.current?.queryRenderedFeatures(e.point, { layers: pointLayers.filter(l => map.current?.getLayer(l)) });
+                const hitFeatures = map.current?.queryRenderedFeatures(e.point, {
+                    layers: POINT_INTERACTION_LAYERS.filter((layerId) => map.current?.getLayer(layerId))
+                });
                 if (hitFeatures && hitFeatures.length > 0) return; // A data point handled this click
 
                 if (e.features && e.features.length > 0) {
@@ -620,42 +592,20 @@ export const CornMap: React.FC<CornMapProps> = ({
             map.current?.on('click', 'market-point-layer', (e) => {
                 e.originalEvent.stopPropagation();
                 if (e.features && e.features[0]) {
-                    const props = e.features[0].properties;
-                    // Try to resolve back to the full Buyer object via buyerId
-                    const buyerId = props?.buyerId || props?.id;
-                    if (buyerId) {
-                        const matchedBuyer = buyersRef.current.find(b => b.id === buyerId || `buyer-heat-${b.id}` === buyerId);
-                        if (matchedBuyer) {
-                            setSelectedItem(matchedBuyer);
-                            return;
-                        }
+                    const selected = resolveHeatmapSelection(e.features[0].properties, buyersRef.current);
+                    if (selected) {
+                        setSelectedItem(selected);
                     }
-                    // Fallback: pass heatmap properties (shows generic HeatmapPoint view)
-                    setSelectedItem(props as any);
                 }
             });
 
             map.current?.on('click', 'bnsf-opp-layer', (e) => {
                 e.originalEvent.stopPropagation();
                 if (e.features && e.features[0]) {
-                    // Reconstruct the nested location object that mapbox flattening destroys
-                    const props = e.features[0].properties as any;
-                    const opp: BNSFOpportunity = {
-                        ...props,
-                        location: {
-                            lat: props.lat ?? 0,
-                            lng: props.lng ?? 0,
-                            city: props.city ?? 'Unknown',
-                            state: props.state ?? 'Unknown'
-                        },
-                        // In Mapbox properties, nested objects get flattened or stringified. 
-                        // But since we just want to pass the data, we'll parse it if it was stringified.
-                    };
-                    // Mapbox stringifies nested JSON, so we handle location manually here 
-                    if (typeof props.location === 'string') {
-                        opp.location = JSON.parse(props.location);
+                    const opportunity = reconstructBnsfOpportunity(e.features[0].properties);
+                    if (opportunity) {
+                        setSelectedItem(opportunity);
                     }
-                    setSelectedItem(opp);
                 }
             });
 
@@ -664,21 +614,8 @@ export const CornMap: React.FC<CornMapProps> = ({
                 const features = map.current?.queryRenderedFeatures(e.point, {
                     layers: ['clusters']
                 });
-                const clusterId = features?.[0].properties?.cluster_id;
-                const source = map.current?.getSource('market-heat') as mapboxgl.GeoJSONSource;
-
-                if (clusterId && source) {
-                    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-                        if (err || !map.current) return;
-
-                        const geom = features[0].geometry;
-                        if (geom.type === 'Point') {
-                            map.current.easeTo({
-                                center: geom.coordinates as [number, number],
-                                zoom: zoom ?? undefined
-                            });
-                        }
-                    });
+                if (features && features.length > 0 && map.current) {
+                    expandCluster(map.current, 'market-heat', features);
                 }
             });
 
@@ -687,21 +624,8 @@ export const CornMap: React.FC<CornMapProps> = ({
                 const features = map.current?.queryRenderedFeatures(e.point, {
                     layers: ['bnsf-opp-clusters']
                 });
-                const clusterId = features?.[0].properties?.cluster_id;
-                const source = map.current?.getSource('bnsf-opportunities') as mapboxgl.GeoJSONSource;
-
-                if (clusterId && source) {
-                    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-                        if (err || !map.current) return;
-
-                        const geom = features[0].geometry;
-                        if (geom.type === 'Point') {
-                            map.current.easeTo({
-                                center: geom.coordinates as [number, number],
-                                zoom: zoom ?? undefined
-                            });
-                        }
-                    });
+                if (features && features.length > 0 && map.current) {
+                    expandCluster(map.current, 'bnsf-opportunities', features);
                 }
             });
 
@@ -848,33 +772,27 @@ export const CornMap: React.FC<CornMapProps> = ({
     useEffect(() => {
         if (!map.current || !styleLoaded) return;
 
-        const setVisibility = (layerId: string, visible: boolean) => {
-            if (map.current && map.current.getLayer(layerId)) {
-                map.current.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
-            }
-        };
-
-        setVisibility('market-heat-layer', showHeatmap);
-        setVisibility('market-point-layer', showHeatmap);
-        setVisibility('market-point-pulse', showHeatmap);
+        setLayerVisibility(map.current, 'market-heat-layer', showHeatmap);
+        setLayerVisibility(map.current, 'market-point-layer', showHeatmap);
+        setLayerVisibility(map.current, 'market-point-pulse', showHeatmap);
 
         // Toggle all rail-related layers (premium + fallback)
-        ['rail-layer', 'rail-glow', 'rail-core', 'rail-flow'].forEach(layer => {
-            setVisibility(layer, showRail);
+        ['rail-layer', 'rail-glow', 'rail-core', 'rail-flow'].forEach((layerId) => {
+            setLayerVisibility(map.current!, layerId, showRail);
         });
 
-        setVisibility('transloader-layer', !!showTransloaders);
-        setVisibility('transloader-pulse', !!showTransloaders);
+        setLayerVisibility(map.current, 'transloader-layer', !!showTransloaders);
+        setLayerVisibility(map.current, 'transloader-pulse', !!showTransloaders);
 
         // Drought Monitor layer toggle
-        setVisibility('drought-fill', !!showDrought);
-        setVisibility('drought-border', !!showDrought);
+        setLayerVisibility(map.current, 'drought-fill', !!showDrought);
+        setLayerVisibility(map.current, 'drought-border', !!showDrought);
 
         if (bnsfLayersLoaded) {
-            setVisibility('bnsf-opp-layer', !!showBnsfOpportunities);
-            setVisibility('bnsf-opp-pulse', !!showBnsfOpportunities);
-            setVisibility('bnsf-opp-clusters', !!showBnsfOpportunities);
-            setVisibility('bnsf-opp-cluster-count', !!showBnsfOpportunities);
+            setLayerVisibility(map.current, 'bnsf-opp-layer', !!showBnsfOpportunities);
+            setLayerVisibility(map.current, 'bnsf-opp-pulse', !!showBnsfOpportunities);
+            setLayerVisibility(map.current, 'bnsf-opp-clusters', !!showBnsfOpportunities);
+            setLayerVisibility(map.current, 'bnsf-opp-cluster-count', !!showBnsfOpportunities);
         }
 
         // state-glow-layer logic if needed, or always valid
@@ -887,28 +805,7 @@ export const CornMap: React.FC<CornMapProps> = ({
     // Update Highlight Layer based on Top States
     useEffect(() => {
         if (!map.current || !styleLoaded) return;
-
-        if (topStates.length > 0) {
-            // Convert codes to full names for Mapbox filter
-            const topStateNames = topStates
-                .map(code => Object.keys(STATE_NAME_TO_CODE).find(key => STATE_NAME_TO_CODE[key] === code))
-                .filter(Boolean);
-
-            if (map.current.getLayer('state-border-highlight')) {
-                map.current.setFilter('state-border-highlight', ['in', 'STATE_NAME', ...topStateNames]);
-            }
-            if (map.current.getLayer('state-fill-highlight')) {
-                map.current.setFilter('state-fill-highlight', ['in', 'STATE_NAME', ...topStateNames]);
-            }
-        } else {
-            if (map.current.getLayer('state-border-highlight')) {
-                map.current.setFilter('state-border-highlight', ['in', 'STATE_NAME', '']); // Hide all
-            }
-            if (map.current.getLayer('state-fill-highlight')) {
-                map.current.setFilter('state-fill-highlight', ['in', 'STATE_NAME', '']); // Hide all
-            }
-        }
-
+        updateTopStateFilters(map.current, topStates);
     }, [topStates, styleLoaded]);
 
     // Auto-focus the top 3 opportunity states when the ranking changes.
@@ -916,12 +813,6 @@ export const CornMap: React.FC<CornMapProps> = ({
     // for the new crop, do NOT re-center — preserve their context.
     useEffect(() => {
         if (!map.current || !styleLoaded || topStates.length === 0 || zoomedState) return;
-
-        const centers = topStates
-            .map((stateCode) => STATE_CENTERS[stateCode])
-            .filter(Boolean) as [number, number][];
-
-        if (centers.length === 0) return;
 
         const focusKey = [...topStates].sort().join(',');
         if (lastAutoFocusKey.current === focusKey) return;
@@ -931,69 +822,21 @@ export const CornMap: React.FC<CornMapProps> = ({
         // If the current viewport contains any data points for this crop,
         // the user is already looking at relevant data — don't rip them away.
         const currentBounds = map.current.getBounds();
-        if (currentBounds) {
-            const hasDataInView = heatmapData.some(pt =>
-                pt.lat >= currentBounds.getSouth() &&
-                pt.lat <= currentBounds.getNorth() &&
-                pt.lng >= currentBounds.getWest() &&
-                pt.lng <= currentBounds.getEast()
-            ) || buyers.some(b =>
-                b.lat >= currentBounds.getSouth() &&
-                b.lat <= currentBounds.getNorth() &&
-                b.lng >= currentBounds.getWest() &&
-                b.lng <= currentBounds.getEast()
-            );
-
-            if (hasDataInView) {
-                // Data exists in the current view — preserve the user's viewport
-                return;
-            }
-        }
-
-        // No data in current view — auto-focus to where the data is
-        if (centers.length === 1) {
-            map.current.flyTo({ center: centers[0], zoom: 5.5, essential: true, duration: 1200 });
+        if (currentBounds && viewportHasData(currentBounds, heatmapData, buyers)) {
             return;
         }
-
-        const bounds = new mapboxgl.LngLatBounds();
-        centers.forEach(([lng, lat]) => bounds.extend([lng, lat]));
-        map.current.fitBounds(bounds, {
-            padding: 80,
-            maxZoom: 5.5,
-            duration: 1200,
-            essential: true
-        });
+        focusTopStates(map.current, topStates);
     }, [topStates, styleLoaded, zoomedState, heatmapData, buyers]);
 
     // Update State Colors Effect (Fill Layer)
     useEffect(() => {
         if (!map.current || !styleLoaded) return;
 
-        const expression: any[] = ['match', ['get', 'STATE_NAME']];
-        const opacityExpression: any[] = ['match', ['get', 'STATE_NAME']];
-
-        let hasData = false;
-        Object.entries(stateMetrics).forEach(([code, data]) => {
-            const name = Object.keys(STATE_NAME_TO_CODE).find(key => STATE_NAME_TO_CODE[key] === code);
-            if (name) {
-                hasData = true;
-                if (data.isHot) {
-                    expression.push(name, '#06b6d4'); // Cyan for data presence
-                    opacityExpression.push(name, 0.4);
-                } else {
-                    expression.push(name, '#1e293b');
-                    opacityExpression.push(name, 0.1);
-                }
-            }
-        });
-
-        expression.push('#000000');
-        opacityExpression.push(0);
+        const { hasData, fillColor, fillOpacity } = buildStateFillExpressions(stateMetrics);
 
         if (map.current.getLayer('state-fill')) {
-            map.current.setPaintProperty('state-fill', 'fill-color', hasData ? expression : '#000000' as any);
-            map.current.setPaintProperty('state-fill', 'fill-opacity', hasData ? opacityExpression : 0 as any);
+            map.current.setPaintProperty('state-fill', 'fill-color', hasData ? fillColor : '#000000' as any);
+            map.current.setPaintProperty('state-fill', 'fill-opacity', hasData ? fillOpacity : 0 as any);
         }
 
     }, [stateMetrics, styleLoaded]);
@@ -1078,30 +921,7 @@ export const CornMap: React.FC<CornMapProps> = ({
         if (!map.current || !styleLoaded) return;
         const source = map.current.getSource('market-heat') as mapboxgl.GeoJSONSource;
         if (source) {
-            let features: any[] = [];
-
-            if (heatmapMode === 'buyers') {
-                features = buyers.map(b => ({
-                    type: 'Feature',
-                    properties: {
-                        weight: (b.basis ?? 0) * 10,
-                        isOpportunity: (b.basis ?? 0) > 0.2 || (b.netPrice || 0) > 4.5,
-                        railScore: b.railConfidence ?? b.railEvidence?.score ?? 0,
-                        ...b
-                    },
-                    geometry: { type: 'Point', coordinates: [b.lng, b.lat] }
-                }));
-            } else {
-                features = heatmapData.map(p => ({
-                    type: 'Feature',
-                    properties: {
-                        weight: p.cornPrice,
-                        railScore: (p as any).railConfidence ?? (p as any).railEvidence?.score ?? 0,
-                        ...p
-                    },
-                    geometry: { type: 'Point', coordinates: [p.lng, p.lat] }
-                }));
-            }
+            const features = buildHeatSourceFeatures(heatmapMode, heatmapData, buyers);
             source.setData({ type: 'FeatureCollection', features });
         }
     }, [heatmapData, buyers, heatmapMode, styleLoaded]);
@@ -1111,11 +931,7 @@ export const CornMap: React.FC<CornMapProps> = ({
         if (!map.current || !styleLoaded) return;
         const source = map.current.getSource('transloaders') as mapboxgl.GeoJSONSource;
         if (source && transloaders) {
-            const features = transloaders.map(t => ({
-                type: 'Feature',
-                properties: t,
-                geometry: { type: 'Point', coordinates: [t.lng, t.lat] }
-            }));
+            const features = buildTransloaderFeatures(transloaders);
             source.setData({ type: 'FeatureCollection', features } as any);
         }
     }, [transloaders, styleLoaded]);

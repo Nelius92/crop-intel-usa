@@ -5,11 +5,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { backendGeminiService } from '../services/gemini.service.js';
 import { calculateBuyerIntelScore, type BuyerIntelInput } from '../services/buyerIntelScore.js';
+import { CROP_TYPES, type CropType } from '../../../../shared/crops.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-type CropType = 'Yellow Corn' | 'White Corn' | 'Soybeans' | 'Wheat' | 'Sunflowers';
 
 interface BuyerRecord {
     id: string;
@@ -30,7 +29,7 @@ interface BuyerRecord {
     website?: string;
 }
 
-const cropSchema = z.enum(['Yellow Corn', 'White Corn', 'Soybeans', 'Wheat', 'Sunflowers']).default('Yellow Corn');
+const cropSchema = z.enum(CROP_TYPES).default('Yellow Corn');
 const buyersRequestSchema = z.object({
     crop: cropSchema.optional(),
 });
@@ -266,7 +265,7 @@ aiRouter.post('/buyer-intel', async (req, res, next) => {
         // Step 1: Deterministic score (instant)
         const intelInput: BuyerIntelInput = {
             buyerType: buyerData.type,
-            crop: crop as any,
+            crop,
             netPrice: buyerData.netPrice,
             benchmarkPrice: buyerData.benchmarkPrice,
             railConfidence: buyerData.railConfidence,

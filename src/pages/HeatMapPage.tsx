@@ -7,6 +7,7 @@ import { CropType, HeatmapPoint, Buyer, Transloader } from '../types';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { fetchRealBuyersFromGoogle } from '../services/buyersService';
 import { fetchMorningRecommendationBuyers } from '../services/morningRecommendationsService';
+import { DEFAULT_CROP, HEATMAP_OPPORTUNITY_THRESHOLDS } from '../../shared/crops.js';
 
 const PRIMARY_CORRIDOR_STATES = new Set([
     'ND', 'MN', 'SD', 'IA', 'NE', 'KS',
@@ -50,16 +51,8 @@ function rankTopStatesByCashBid(buyers: Buyer[]): string[] {
  * Build heatmap points from buyer data.
  * Thresholds are crop-aware so opportunity dots light up correctly for all commodities.
  */
-function buildHeatmapFromBuyers(buyers: Buyer[], crop: CropType = 'Yellow Corn'): HeatmapPoint[] {
-    // Crop-aware thresholds for opportunity classification
-    const thresholds: Record<string, { netPrice: number; cashPrice: number }> = {
-        'Yellow Corn':    { netPrice: 4.75, cashPrice: 5.0 },
-        'Soybeans':       { netPrice: 10.50, cashPrice: 11.0 },
-        'Hard Red Spring Wheat': { netPrice: 5.50, cashPrice: 6.0 },
-        'Sunflowers':     { netPrice: 20.0, cashPrice: 22.0 },
-        'Durum Wheat':    { netPrice: 7.0, cashPrice: 7.5 },
-    };
-    const t = thresholds[crop] || thresholds['Yellow Corn'];
+function buildHeatmapFromBuyers(buyers: Buyer[], crop: CropType = DEFAULT_CROP): HeatmapPoint[] {
+    const t = HEATMAP_OPPORTUNITY_THRESHOLDS[crop] || HEATMAP_OPPORTUNITY_THRESHOLDS[DEFAULT_CROP];
 
     return buyers
         .filter((buyer) => Number.isFinite(buyer.lat) && Number.isFinite(buyer.lng))
@@ -260,8 +253,8 @@ export const HeatMapPage: React.FC<HeatMapPageProps> = ({ selectedCrop, isVisibl
             {/* Sunflower Lane Panel — shows only when Sunflowers crop is selected */}
             {selectedCrop === 'Sunflowers' && (
                 <SunflowerLanePanel
-                    onLaneSelect={(lane) => console.log('[CropIntel] Lane selected:', lane.id)}
-                    onOfferGenerate={(offer) => console.log('[CropIntel] Offer generated:', offer.laneId, offer.totalContractValue)}
+                    onLaneSelect={() => undefined}
+                    onOfferGenerate={() => undefined}
                 />
             )}
         </div>
