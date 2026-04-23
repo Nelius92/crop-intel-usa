@@ -289,11 +289,11 @@ Rail-accessible facilities are commanding a premium, with basis levels strengthe
 
         // Default Fallbacks (User Provided Truths from Guardian Hankinson)
         const FALLBACK_ORACLE: MarketOracle = {
-            futuresPrice: 4.635,
-            contractMonth: "Jul '26",
-            benchmarkBasis: -0.77,
-            hankinsonBasis: -0.77,
-            centralRegionBasis: -0.70, // ND/MN avg basis Apr 2026
+            futuresPrice: 4.5425,
+            contractMonth: "May '26",
+            benchmarkBasis: -0.40,
+            hankinsonBasis: -0.40,
+            centralRegionBasis: -0.50, // Central ND/MN elevator avg
             lastUpdated: new Date().toISOString()
         };
 

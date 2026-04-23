@@ -46,9 +46,9 @@ interface CropDefaults {
 
 const MARKET_DEFAULTS: Record<string, CropDefaults> = {
     'Yellow Corn': {
-        price: 4.635,
-        contract: "ZCN6 (Jul '26)",
-        benchmarkBasis: -0.77,       // Hankinson actual ~Apr 23, 2026 → ~$3.87 cash (ND avg -0.75 to -0.80)
+        price: 4.5425,
+        contract: "ZCK6 (May '26)",
+        benchmarkBasis: -0.40,       // Guardian Hankinson spot bid Apr 23, 2026 → $4.14 cash
         benchmarkName: 'Hankinson',
         benchmarkFreight: 0.25,      // Farmer self-delivery cost to Hankinson (~$0.25/bu)
         priceUnit: '$/bu'
